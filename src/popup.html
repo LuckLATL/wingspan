@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Wingspan Settings</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+
+  <div class="header">
+    <div class="header-left">
+      <img src="icons/icon48.png" width="22" height="22" alt="">
+      <span class="header-title">Wingspan</span>
+    </div>
+    <span class="header-version">v1.1.0</span>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Klipy API Key</div>
+    <div class="input-row">
+      <input id="klipyKey" type="password" class="input"
+             placeholder="Paste your key…" spellcheck="false" autocomplete="off">
+      <button id="toggleKey" class="icon-btn" title="Show / hide key" type="button">
+        <svg id="eyeIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+             width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+      </button>
+    </div>
+    <a class="hint-link" href="https://klipy.com/developers" target="_blank">
+      Get a free key ↗
+    </a>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="section">
+    <div class="section-label">Features</div>
+
+    <label class="toggle-row">
+      <span class="toggle-label">Pause GIFs in chat until hovered</span>
+      <span class="toggle-wrap">
+        <input id="pauseChatGifs" type="checkbox" class="toggle-input">
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+      </span>
+    </label>
+
+    <label class="toggle-row">
+      <span class="toggle-label">Show presence dots on avatars</span>
+      <span class="toggle-wrap">
+        <input id="showPresence" type="checkbox" class="toggle-input">
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+      </span>
+    </label>
+
+    <label class="toggle-row">
+      <span class="toggle-label">Custom user banners</span>
+      <span class="toggle-wrap">
+        <input id="userBanners" type="checkbox" class="toggle-input">
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+      </span>
+    </label>
+
+    <label class="toggle-row">
+      <span class="toggle-label">Room &amp; user nicknames</span>
+      <span class="toggle-wrap">
+        <input id="roomNicknames" type="checkbox" class="toggle-input">
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+      </span>
+    </label>
+
+    <label class="toggle-row">
+      <span class="toggle-label">Categories in spaces</span>
+      <span class="toggle-wrap">
+        <input id="spaceCategories" type="checkbox" class="toggle-input">
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+      </span>
+    </label>
+
+    <label class="toggle-row">
+      <span class="toggle-label">Fade deletions &amp; room events</span>
+      <span class="toggle-wrap">
+        <input id="fadeNoise" type="checkbox" class="toggle-input">
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+      </span>
+    </label>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="section">
+    <div class="section-label">Active on Domains</div>
+    <textarea id="domains" class="input input-multiline"
+              spellcheck="false" autocomplete="off"
+              placeholder="app.cinny.in&#10;chat.example.org&#10;*.matrix.example"></textarea>
+    <button id="addThisSite" class="secondary-btn" type="button">＋ Add this site</button>
+    <div class="hint">One per line. <code>*.example.com</code> matches the apex and any subdomain. Reload affected tabs to apply.</div>
+  </div>
+
+  <div class="footer">
+    <span class="status" id="status"></span>
+    <button id="save" class="save-btn" type="button">Save</button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

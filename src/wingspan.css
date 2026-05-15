@@ -1,0 +1,820 @@
+/* Wingspan — Cinny enhancement styles */
+
+/* ── GIF button ─────────────────────────────────────────────────────────── */
+
+.wingspan-gif-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--tc-surface-low, #9ca3af);
+  flex-shrink: 0;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.wingspan-gif-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--tc-surface-high, #e5e7eb);
+}
+
+.wingspan-gif-btn svg { display: block; }
+
+.wingspan-gif-btn.wingspan-uploading {
+  animation: wingspan-pulse 0.7s ease infinite;
+}
+
+@keyframes wingspan-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+
+/* ── GIF picker panel ───────────────────────────────────────────────────── */
+
+.wingspan-gif-picker {
+  position: fixed;
+  z-index: 99999;
+  width: 500px;
+  height: 560px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface, #1e2124);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  font-family: inherit;
+}
+
+/* Header */
+
+.wingspan-gif-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 10px 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  flex-shrink: 0;
+}
+
+.wingspan-gif-search {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: var(--tc-surface-high, #e5e7eb);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.12s ease;
+}
+
+.wingspan-gif-search::placeholder { color: var(--tc-surface-low, #6b7280); }
+.wingspan-gif-search:focus { border-color: rgba(129, 140, 248, 0.7); }
+
+/* Back button */
+
+.wingspan-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--tc-surface-low, #9ca3af);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.wingspan-back-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--tc-surface-high, #e5e7eb);
+}
+
+/* Close button */
+
+.wingspan-gif-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--tc-surface-low, #9ca3af);
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.wingspan-gif-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--tc-surface-high, #e5e7eb);
+}
+
+/* Target indicator — confirms which room a GIF will go to */
+
+.wingspan-gif-target {
+  padding: 6px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  font-size: 11px;
+  color: var(--tc-surface-low, #9ca3af);
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wingspan-gif-target b {
+  color: var(--tc-surface-high, #e5e7eb);
+  font-weight: 600;
+}
+
+/* ── View switching ──────────────────────────────────────────────────────── */
+
+.wingspan-gif-picker[data-wingspan-view="categories"] .wingspan-gif-grid,
+.wingspan-gif-picker[data-wingspan-view="categories"] .wingspan-gif-footer { display: none; }
+
+.wingspan-gif-picker[data-wingspan-view="gifs"] .wingspan-gif-categories { display: none; }
+
+/* Back button — only visible in GIF view */
+[data-wingspan="gif-back"] { display: none; }
+.wingspan-gif-picker[data-wingspan-view="gifs"] [data-wingspan="gif-back"] {
+  display: inline-flex;
+}
+
+/* ── Category cards ──────────────────────────────────────────────────────── */
+
+.wingspan-gif-categories {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  align-content: stretch;
+  gap: 8px;
+  padding: 10px;
+  overflow: hidden;
+  flex: 1;
+}
+
+.wingspan-cat-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center center;
+  transition: filter 0.12s ease, transform 0.1s ease;
+}
+
+.wingspan-cat-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  pointer-events: none;
+}
+
+.wingspan-cat-card:hover {
+  filter: brightness(1.12);
+  transform: scale(1.03);
+}
+
+.wingspan-cat-card span {
+  position: relative;
+  z-index: 1;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  text-align: center;
+  line-height: 1.2;
+  pointer-events: none;
+}
+
+/* ── Masonry GIF grid ───────────────────────────────────────────────────── */
+
+.wingspan-gif-grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px;
+}
+
+.wingspan-gif-grid-inner {
+  /* JS-managed masonry: items are appended to the shortest column, so
+     existing items don't reshuffle when a new page is loaded. */
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wingspan-masonry {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.wingspan-masonry-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wingspan-gif-grid::-webkit-scrollbar { width: 4px; }
+.wingspan-gif-grid::-webkit-scrollbar-track { background: transparent; }
+.wingspan-gif-grid::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+}
+
+/* Status message and loader sit below the masonry row, full width */
+.wingspan-gif-loader {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 6px;
+}
+
+.wingspan-gif-loader::after {
+  content: '';
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  border-top-color: rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+  animation: wingspan-spin 0.7s linear infinite;
+}
+
+@keyframes wingspan-spin {
+  to { transform: rotate(360deg); }
+}
+
+.wingspan-gif-status {
+  display: block;
+  text-align: center;
+  padding: 28px 0 20px;
+  color: var(--tc-surface-low, #6b7280);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.wingspan-gif-item {
+  display: block;
+  width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+  background: rgba(255, 255, 255, 0.04);
+  transition: opacity 0.1s ease;
+}
+
+.wingspan-gif-item:hover { opacity: 0.85; }
+
+/* Natural height from image — no forced aspect ratio.
+   !important overrides Cinny's global img rules (object-fit, aspect-ratio, etc.) */
+.wingspan-gif-item img {
+  width: 100% !important;
+  height: auto !important;
+  display: block !important;
+  object-fit: fill !important;
+  aspect-ratio: unset !important;
+  max-height: none !important;
+}
+
+/* ── Favorite heart button ──────────────────────────────────────────────── */
+
+.wingspan-fav-btn {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+
+  /* Hidden until hover or already favorited */
+  display: none;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  color: rgba(255, 255, 255, 0.7);
+  transition: transform 0.1s ease, background 0.1s ease;
+}
+
+/* Show on GIF hover or when already favorited */
+.wingspan-gif-item:hover .wingspan-fav-btn,
+.wingspan-fav-btn[data-fav="true"] {
+  display: flex;
+}
+
+.wingspan-fav-btn[data-fav="true"] {
+  color: #f43f5e;
+  background: rgba(0, 0, 0, 0.65);
+}
+
+.wingspan-fav-btn:hover {
+  transform: scale(1.18);
+  background: rgba(0, 0, 0, 0.8);
+}
+
+/* ── Footer ─────────────────────────────────────────────────────────────── */
+
+.wingspan-gif-footer {
+  padding: 5px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  text-align: right;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+}
+
+/* ── User status message ────────────────────────────────────────────────── */
+
+/* Only applied when a status message is actually present — no layout change otherwise */
+.wingspan-has-status {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-self: center !important;
+}
+
+.wingspan-user-status-msg {
+  display: block;
+  font-size: 11px;
+  color: var(--tc-surface-low, #6b7280);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  line-height: 1.3;
+  margin-top: 0px;
+}
+
+.wingspan-user-status-msg:empty { display: none; }
+
+/* ── Presence dots ──────────────────────────────────────────────────────── */
+
+.wingspan-presence-dot {
+  position: absolute;
+  bottom: -5px;
+  right: -5px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2.5px solid var(--bg-surface, #1e2124);
+  pointer-events: none;
+  z-index: 5;
+  transition: background-color 0.3s ease;
+}
+
+.wingspan-presence-online  { background: #22c55e; }
+.wingspan-presence-away    { background: #f59e0b; }
+.wingspan-presence-offline { background: #6b7280; }
+.wingspan-presence-unknown { display: none; }
+
+/* ── Lobby redesign (Discord-style cards) ──────────────────────────────────
+   Targets Cinny's generated atomic classes — these are stable within a
+   Cinny build but may need refreshing across major upgrades. */
+
+/* Top header bar gets a space-avatar banner via inline styles set by JS.
+   These rules add the dark overlay and text-shadow so the title stays
+   readable on any avatar. Targeted by the data-wingspan-banner attribute the
+   JS sets, so they don't apply when no banner URL was resolved. */
+header[data-wingspan-banner]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.65) 100%);
+  z-index: -1;
+  pointer-events: none;
+}
+
+header[data-wingspan-banner] p {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+
+/* ── User profile banners ──────────────────────────────────────────────────
+   Discord-inspired: each user row in the member list or DM list shows the
+   user's profile banner image. A left-anchored dark gradient keeps the
+   avatar + username readable; the right side fades to let the banner show. */
+/* Doubled attribute selector boosts specificity (0,2,0) so any per-corner
+   radius Cinny defines on its `.t4fedt8` / `_13tt0gb...` classes loses. */
+[data-wingspan-user-banner][data-wingspan-user-banner] {
+  position: relative !important;
+  isolation: isolate !important;
+  overflow: hidden !important;
+  border-top-left-radius:     8px !important;
+  border-top-right-radius:    8px !important;
+  border-bottom-right-radius: 8px !important;
+  border-bottom-left-radius:  8px !important;
+  /* Match the full slot width so the banner aligns with Cinny's hover
+     indicator (which spans the entire slot). Vertical margin is kept for
+     visual gap between cards. */
+  box-sizing: border-box !important;
+  width: 100% !important;
+  margin: 3px 0 !important;
+  background-clip: padding-box !important;
+  transition: filter 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Hover indicator — slight brightness lift plus a subtle inner border so the
+   row clearly reads as interactive (Cinny's own hover bg was neutralised
+   when we blanked the inner anchor's background-color). */
+[data-wingspan-user-banner]:hover {
+  filter: brightness(1.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+/* Cinny renders the DM row's anchor with its own background-color (hover /
+   selected states) and per-corner border-radii. Inside a banner wrapper we
+   want the banner to show through cleanly, so blank the anchor's bg and
+   neutralise its own rounding so the wrapper's shape wins. */
+[data-wingspan-user-banner] > a {
+  background-color: transparent !important;
+  border-radius: 0 !important;
+}
+[data-wingspan-user-banner]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  /* Dark overlay on the left (banner hidden, name fully readable) fading to
+     fully transparent on the right (banner shows in full). */
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 1)    0%,
+    rgba(0, 0, 0, 0.7) 30%,
+    rgba(0, 0, 0, 0)  100%
+  );
+  z-index: -1;
+  pointer-events: none;
+}
+[data-wingspan-user-banner] p,
+[data-wingspan-user-banner] span {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+
+/* ── Chat-bar icon hover animations ────────────────────────────────────────
+   Each button in the message composer's button cluster (.coabsl1) gets a
+   small playful animation when hovered. Buttons are identified by the start
+   of their SVG path data, which is stable within a Cinny build. */
+
+.coabsl1 button svg,
+.coabsl1 button.wingspan-gif-btn svg {
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: center;
+}
+
+/* Default fallback: a subtle pop for any chat-bar button. */
+.coabsl1 button:hover svg {
+  transform: scale(1.18);
+}
+
+/* Send (paper plane) — flies up-right. */
+.coabsl1 button:has(svg path[d^="M23 12L3 2"]):hover svg {
+  animation: wingspan-icon-send 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+@keyframes wingspan-icon-send {
+  0%   { transform: translate(0, 0) rotate(0) scale(1); }
+  55%  { transform: translate(4px, -4px) rotate(18deg) scale(1.12); }
+  100% { transform: translate(2px, -2px) rotate(10deg) scale(1.12); }
+}
+
+/* Emoji (smiley face) — winking head-shake. */
+.coabsl1 button:has(svg path[d^="M12 3.5C7.32843"]):hover svg {
+  animation: wingspan-icon-wink 0.55s ease forwards;
+}
+@keyframes wingspan-icon-wink {
+  0%   { transform: rotate(0) scale(1); }
+  25%  { transform: rotate(-12deg) scale(1.12); }
+  55%  { transform: rotate(10deg) scale(1.12); }
+  80%  { transform: rotate(-4deg) scale(1.12); }
+  100% { transform: rotate(0) scale(1.15); }
+}
+
+/* Sticker/attach panel — bounce. */
+.coabsl1 button:has(svg path[d^="M17 13H15C15"]):hover svg {
+  animation: wingspan-icon-bounce 0.5s ease forwards;
+}
+@keyframes wingspan-icon-bounce {
+  0%   { transform: translateY(0) scale(1); }
+  30%  { transform: translateY(-4px) scale(1.18); }
+  60%  { transform: translateY(1px) scale(0.94); }
+  100% { transform: translateY(0) scale(1.15); }
+}
+
+/* Italic Aa formatter — pop with a left tilt. */
+.coabsl1 button:has(svg path[d^="M3 18L7 5H9"]):hover svg {
+  animation: wingspan-icon-tilt 0.35s ease forwards;
+}
+@keyframes wingspan-icon-tilt {
+  0%   { transform: scale(1) rotate(0); }
+  100% { transform: scale(1.18) rotate(-6deg); }
+}
+
+/* Wingspan GIF button — gentle pulse while hovered. */
+.coabsl1 .wingspan-gif-btn:hover svg {
+  animation: wingspan-icon-pulse 0.9s ease-in-out infinite;
+}
+@keyframes wingspan-icon-pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.18); }
+}
+
+/* Respect users who'd rather not see motion. */
+@media (prefers-reduced-motion: reduce) {
+  .coabsl1 button:hover svg,
+  .coabsl1 .wingspan-gif-btn:hover svg {
+    animation: none !important;
+    transform: scale(1.08);
+  }
+}
+
+/* Hero header: bigger title, breathing room. */
+._1xki9of8 ._1xki9ofa {
+  padding: 36px 24px 22px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+._1xki9ofa h2 > p:first-child {
+  font-size: 28px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.01em;
+}
+
+._1xki9ofa h2 > p:nth-child(2) {
+  color: rgba(255, 255, 255, 0.55) !important;
+  font-size: 13px !important;
+}
+
+/* Filter input — injected via JS as the last child of the hero. */
+.wingspan-lobby-filter {
+  display: block;
+  width: 100%;
+  max-width: 520px;
+  margin: 18px auto 0;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.92);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.wingspan-lobby-filter:focus {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(149, 93, 255, 0.55);
+}
+.wingspan-lobby-filter::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Card-style room rows. Margins are tight on the sides so the card has the
+   full available width to hold the drag handle + avatar + name + members
+   without truncation. */
+._1xki9of8 .azdvag2 {
+  margin: 6px 6px !important;
+  padding: 8px 14px 8px 6px !important;
+  border-radius: 12px !important;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  transition: background 0.12s ease, border-color 0.12s ease,
+              transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+/* Don't let the inner content overflow when the left grip is also visible. */
+._1xki9of8 .azdvag2 > div[draggable="true"] {
+  min-width: 0;
+  flex: 1;
+}
+
+/* Push the room icon to the right so the drag handle has room to breathe. */
+._1xki9of8 .azdvag2 ._1684mq54 {
+  margin-left: 14px !important;
+}
+._1xki9of8 .azdvag2:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
+}
+
+/* Hide the right-side drag handle column. The left grip stays. */
+._1xki9of8 .azdvag2 > div:has(> button.brs7ce5) {
+  display: none !important;
+}
+
+/* Open-room arrow appears only on hover — keeps the row clean. */
+._1xki9of8 .azdvag2 button[data-room-id] {
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+._1xki9of8 .azdvag2:hover button[data-room-id] {
+  opacity: 1;
+}
+
+/* Soften the "Rooms" / Add Room / Add Space cluster so it reads as a
+   subdued sub-header inside the new card layout. */
+._1xki9of8 ._1321e2t0 {
+  margin: 8px 16px 4px !important;
+}
+
+/* ── Dimmed chat noise ─────────────────────────────────────────────────────
+   Deleted messages and Matrix state/room events are not interesting when
+   skimming the timeline, so we fade them out. Hovering recovers full opacity
+   so the text is still readable on intent. */
+
+[data-message-item][data-wingspan-dim] {
+  opacity: 0.4;
+  transition: opacity 0.15s ease;
+}
+[data-message-item][data-wingspan-dim]:hover {
+  opacity: 1;
+}
+
+/* ── Muted room rows ────────────────────────────────────────────────────── */
+
+/* The mute bell SVG (aria-label="Mute") only renders on muted rooms in the
+   sidebar — dim the whole row so it visually recedes. */
+a[href]:has(svg[aria-label="Mute"]) {
+  opacity: 0.45;
+  transition: opacity 0.12s ease;
+}
+
+a[href]:has(svg[aria-label="Mute"]):hover {
+  opacity: 0.85;
+}
+
+/* ── Room categories in spaces ─────────────────────────────────────────────
+   The header row we inject between sibling room links inside a Cinny space
+   sidebar. Style is intentionally restrained — we're rendering uppercase
+   pill labels inside Cinny's own list, not a banner. */
+
+.wingspan-cat-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px 4px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+}
+.wingspan-cat-header:hover { color: rgba(255, 255, 255, 0.85); }
+
+svg.wingspan-cat-chevron {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  transform-origin: 50% 50%;
+  transition: transform 0.12s ease;
+}
+.wingspan-cat-header[data-collapsed="true"] .wingspan-cat-chevron { transform: rotate(-90deg); }
+
+.wingspan-cat-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.wingspan-cat-name-input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  color: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 4px;
+  padding: 1px 4px;
+  outline: none;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+[data-wingspan-hidden-cat="1"] { display: none !important; }
+
+/* Backstop for the inline overrides in layoutContainer(): if any Cinny class
+   wins the specificity race for `position` or `top`, this rule still pins
+   every container child into normal flex flow so `order` works.
+
+   `display: flex` is critical — Cinny initially sets it inline, but its React
+   reconciler will rewrite the container's `style` attribute on later renders
+   and drop the flex declaration, which silently breaks `order`. Pinning it in
+   CSS makes the layout survive re-renders. */
+[data-wingspan-room-list="1"] {
+  display: flex !important;
+  flex-direction: column !important;
+  height: auto !important;
+}
+[data-wingspan-room-list="1"] > * {
+  position: static !important;
+  top: auto !important;
+}
+
+/* Visual gap after the last row of each group (uncategorized block + every
+   category) so the boundary to the next category is obvious. */
+[data-wingspan-end-margin="1"] {
+  margin-bottom: 12px !important;
+}
+
+/* When dragging, highlight valid drop targets so the user can see them. */
+body[data-wingspan-dragging-room] .wingspan-cat-header,
+body[data-wingspan-dragging-cat]  .wingspan-cat-header {
+  background: rgba(255, 255, 255, 0.04);
+}
+.wingspan-cat-header.wingspan-drop-hover,
+[data-index="0"].wingspan-drop-hover {
+  background: rgba(99, 102, 241, 0.25) !important;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+/* ── Category context menu ────────────────────────────────────────────────── */
+
+.wingspan-cat-menu {
+  position: fixed;
+  z-index: 100000;
+  min-width: 180px;
+  padding: 4px;
+  background: #1e2124;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.wingspan-cat-menu button {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.wingspan-cat-menu button:hover { background: rgba(255, 255, 255, 0.07); }
+.wingspan-cat-menu button.wingspan-danger { color: #f87171; }
+.wingspan-cat-menu button.wingspan-danger:hover { background: rgba(248, 113, 113, 0.12); }
+
+.wingspan-cat-menu-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* "+" button injected next to the "Rooms" heading in the space sidebar.
+   We rely on margin-left:auto in case the heading row is a flex container
+   (the common case); otherwise it falls back to inline placement at the end
+   of the row, which still reads as "next to the heading" visually. */
+
+.wingspan-add-cat-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.wingspan-add-cat-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.95);
+}
