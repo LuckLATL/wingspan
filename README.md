@@ -14,12 +14,12 @@
 <div>
 
 [![GitHub license](https://img.shields.io/github/license/LuckLATL/wingspan?style=for-the-badge)](https://github.com/LuckLATL/wingspan/blob/master/LICENSE)
-[![Chrome Web Store](https://img.shields.io/chrome-web-store/...?color=blue&label=VERSION&style=for-the-badge)](https://chrome.google.com/webstore/detail/???)
-[![Chrome Web Store](https://img.shields.io/chrome-web-store/users/????color=green&label=Downloads&style=for-the-badge)](https://chrome.google.com/webstore/detail/???)
-[![Chrome Web Store](https://img.shields.io/chrome-web-store/rating/pkmkphhocffbdebfbkohpnnaohidfama?color=green&style=for-the-badge)](https://chrome.google.com/webstore/detail/???)
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/cgmkamiajocdlgedobmgnppipejcmech?color=blue&label=VERSION&style=for-the-badge)](https://chrome.google.com/webstore/detail/cgmkamiajocdlgedobmgnppipejcmech)
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/users/cgmkamiajocdlgedobmgnppipejcmech?color=green&label=Downloads&style=for-the-badge)](https://chrome.google.com/webstore/detail/cgmkamiajocdlgedobmgnppipejcmech)
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/rating/cgmkamiajocdlgedobmgnppipejcmech?color=green&style=for-the-badge)](https://chrome.google.com/webstore/detail/cgmkamiajocdlgedobmgnppipejcmech)
 
 </div>
- <a href="https://chrome.google.com/webstore/detail/...">Get From Chrome Store</a>
+ <a href="https://chrome.google.com/webstore/detail/cgmkamiajocdlgedobmgnppipejcmech">Get From Chrome Store</a>
     •
  <a href="https://github.com/LuckLATL/wingspan/issues">Report Bug</a>
 </div>
@@ -34,20 +34,20 @@ Wingspan is a Chrome and Firefox extension designed to expand the functionality 
 
 ## Features
 
-| | Feature | Details |
-|---|---|---|
-| 🎬 | **GIF Picker** | Integrated button in the Cinny composer toolbar |
-| 🔍 | **Live Search** | Debounced search-as-you-type via the Klipy API |
-| 📈 | **Trending Feed** | Opens to trending GIFs by default |
-| 💾 | **Favorites** | Save GIFs with ♥ — persisted across sessions |
-| 🖼 | **Masonry Grid** | 3-column layout that respects each GIF's natural height |
-| 🎞 | **Animated Previews** | Picker thumbnails play as animated GIFs, not static stills |
-| 📎 | **Native Attachments** | GIFs upload to your homeserver as `m.image` events — not links |
-| 🟢 | **Presence Dots** | Color-coded online status on every user avatar |
-| ⚡ | **Live Presence** | Driven by real-time `/sync` events, not the stale presence endpoint |
-| ⏸ | **Chat GIF Pause** | Timeline GIFs frozen on first frame until hovered |
-| ⚙️ | **Settings Popup** | Configure everything from the toolbar icon — no page reload needed |
-| 🦊 | **Firefox + Chrome** | Works as a native extension on both browsers |
+| Feature | Details |
+|---|---|
+| **GIF Picker** | Integrated button in the Cinny composer toolbar |
+| **Live Search** | Debounced search-as-you-type via the Klipy API |
+| **Trending Feed** | Opens to trending GIFs by default |
+| **Favorites** | Save GIFs with ♥ |
+| **Masonry Grid** | 3-column layout that respects each GIF's natural height |
+| **Animated Previews** | Picker thumbnails play as animated GIFs, not static stills |
+| **Native Attachments** | GIFs upload to your homeserver as `m.image` events |
+| **Presence Dots** | Color-coded online status on every user avatar |
+| **Live Presence** | Driven by real-time `/sync` events, not the stale presence endpoint |
+|**Chat GIF Pause** | Timeline GIFs frozen on first frame until hovered |
+| **Settings Popup** | Configure everything from the toolbar icon |
+| **Firefox + Chrome** | Works as a native extension on both browsers |
 
 ---
 
@@ -72,7 +72,7 @@ Wingspan is a Chrome and Firefox extension designed to expand the functionality 
 ## Setup
 
 1. Click the **Wingspan** icon in your browser toolbar
-2. Paste your [Klipy API key](https://klipy.com/developers) — it's free
+2. Paste your [Klipy API key](https://klipy.com/developers)
 3. Toggle features on or off to your preference
 4. Click **Save**
 
