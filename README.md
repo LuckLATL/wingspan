@@ -13,13 +13,17 @@
     <br />
 <div>
 
-[![GitHub license](https://img.shields.io/github/license/LuckLATL/wingspan?style=for-the-badge)](https://github.com/LuckLATL/wingspan/blob/master/LICENSE)
-[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/cgmkamiajocdlgedobmgnppipejcmech?color=blue&label=VERSION&style=for-the-badge)](https://chrome.google.com/webstore/detail/cgmkamiajocdlgedobmgnppipejcmech)
-[![Chrome Web Store](https://img.shields.io/chrome-web-store/users/cgmkamiajocdlgedobmgnppipejcmech?color=green&label=Downloads&style=for-the-badge)](https://chrome.google.com/webstore/detail/cgmkamiajocdlgedobmgnppipejcmech)
-[![Chrome Web Store](https://img.shields.io/chrome-web-store/rating/cgmkamiajocdlgedobmgnppipejcmech?color=green&style=for-the-badge)](https://chrome.google.com/webstore/detail/cgmkamiajocdlgedobmgnppipejcmech)
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/cgmkamiajocdlgedobmgnppipejcmech?color=blue&label=Chrome&style=for-the-badge&logo=googlechrome&logoColor=white)](https://chrome.google.com/webstore/detail/cgmkamiajocdlgedobmgnppipejcmech)
+[![Mozilla Add-on](https://img.shields.io/amo/v/wingspan?color=blue&label=Firefox&style=for-the-badge&logo=firefoxbrowser&logoColor=white)](https://addons.mozilla.org/en-US/firefox/addon/wingspan/)
+
+
+[![Chrome Web Store Rating](https://img.shields.io/chrome-web-store/rating/cgmkamiajocdlgedobmgnppipejcmech?color=green&label=Chrome%20Rating&style=for-the-badge)](https://chrome.google.com/webstore/detail/cgmkamiajocdlgedobmgnppipejcmech)
+[![Mozilla Add-on Rating](https://img.shields.io/amo/rating/wingspan?color=green&label=Firefox%20Rating&style=for-the-badge)](https://addons.mozilla.org/en-US/firefox/addon/wingspan/)
 
 </div>
- <a href="https://chrome.google.com/webstore/detail/cgmkamiajocdlgedobmgnppipejcmech">Get From Chrome Store</a>
+ <a href="https://chrome.google.com/webstore/detail/cgmkamiajocdlgedobmgnppipejcmech">Get from Chrome Web Store</a>
+    •
+ <a href="https://addons.mozilla.org/en-US/firefox/addon/wingspan/">Get from Firefox Add-ons</a>
     •
  <a href="https://github.com/LuckLATL/wingspan/issues">Report Bug</a>
 </div>
@@ -53,19 +57,30 @@ Wingspan is a Chrome and Firefox extension designed to expand the functionality 
 
 ## Installation
 
-### Chrome / Chromium
+The easiest way to install Wingspan is from the official browser stores:
+
+- **Chrome / Chromium / Edge / Brave** → [Chrome Web Store](https://chrome.google.com/webstore/detail/cgmkamiajocdlgedobmgnppipejcmech)
+- **Firefox** → [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/wingspan/)
+
+Both listings are kept in sync with this repository and update automatically.
+
+### Manual installation (for development)
+
+Prefer to load the extension from source — for example, to test a local change?
+
+#### Chrome / Chromium
 1. Download or clone this repository
 2. Go to `chrome://extensions`
 3. Enable **Developer mode** (top right)
 4. Click **Load unpacked** and select the `wingspan` folder
 
-### Firefox
+#### Firefox
 1. Download or clone this repository
 2. Go to `about:debugging#/runtime/this-firefox`
 3. Click **Load Temporary Add-on**
 4. Select the `manifest.json` file inside the `wingspan` folder
 
-> **Note:** Temporary add-ons in Firefox are removed on browser restart. For a persistent install, the extension must be signed by Mozilla or installed via an enterprise policy.
+> **Note:** Temporary add-ons in Firefox are removed on browser restart. For a persistent install on Firefox, use the [signed AMO build](https://addons.mozilla.org/en-US/firefox/addon/wingspan/).
 
 ---
 
