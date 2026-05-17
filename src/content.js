@@ -259,6 +259,7 @@
 
   function scan() {
     injectGifButton();
+    installSlashTenor();
     if (CFG.SHOW_PRESENCE)    injectPresenceDots();
     if (CFG.SHOW_PRESENCE)    injectStatusMessages();
     if (CFG.SHOW_PRESENCE)    injectDmListPresence();
@@ -481,11 +482,31 @@
   // Tag deleted messages and Matrix room/state events with `data-wingspan-dim`
   // so a CSS rule can fade them out — they're noise when you're skimming.
   // Hovering brings them back to full opacity so you can still read them.
+  //
+  // Detection signals (in priority order):
+  //   1. Italic "This message has been deleted" body → `deleted`.
+  //   2. `._161nxveb` on the message wrapper — Cinny tags every compact
+  //      state/event row with this hashed class. Covers m.room.member
+  //      (joins/leaves/invites/bans), m.room.name/avatar/topic changes,
+  //      m.room.encryption, m.room.power_levels, m.room.pinned_events,
+  //      m.call.* notices, integration/widget events, redaction notices,
+  //      and anything else Cinny renders without a clickable avatar.
+  //   3. Fallback regex on the compact-row visible text — only used when
+  //      the structural class isn't present (different Cinny build).
   const ROOM_EVENT_PATTERNS = [
     /state event\.?$/i,
     /(joined|left|rejoined) the room\.?$/i,
-    /changed (their|the) (avatar|name|display name|topic)/i,
+    /\bchanged (their|the|room) (avatar|name|display name|topic|alias)\b/i,
     /\b(invited|kicked|banned|unbanned|removed)\b/i,
+    /\b(started|ended|joined|left|missed|declined|answered) (a |the )?call\b/i,
+    /\bcall (started|ended)\b/i,
+    /\b(created|upgraded|replaced) (the )?room\b/i,
+    /\bencryption (enabled|enforced|turned on)\b/i,
+    /\benabled end-to-end encryption\b/i,
+    /\b(pinned|unpinned) (a |the )?message\b/i,
+    /\bchanged (the )?(power level|room alias|history visibility|guest access|join rule)/i,
+    /\b(set|removed) (the )?(room )?(avatar|topic|name)\b/i,
+    /\b(added|removed) (a |the )?widget\b/i,
   ];
   function dimChatNoise() {
     for (const msg of document.querySelectorAll('[data-message-item]')) {
@@ -494,9 +515,12 @@
       const italic = msg.querySelector('p > span > i');
       if (italic && /This message has been deleted/i.test(italic.textContent || '')) {
         kind = 'deleted';
+      } else if (msg.classList.contains('_161nxveb')) {
+        // Cinny's structural marker for any compact event/state row.
+        kind = 'room-event';
       } else if (!msg.querySelector('button[data-user-id]')) {
-        // Compact row — no clickable avatar — matched against the small set of
-        // canonical event phrasings so plain user text can't false-positive.
+        // Fallback path: text-based detection for builds where the marker
+        // class above has been rehashed away.
         const p = msg.querySelector('p');
         const pText = (p?.textContent || '').replace(/\s+/g, ' ').trim();
         if (pText && ROOM_EVENT_PATTERNS.some(re => re.test(pText))) {
@@ -853,6 +877,249 @@
     // Response is { result, data: { data: [...] } } or { result, data: [...] }
     const d = body?.data;
     return Array.isArray(d) ? d : (Array.isArray(d?.data) ? d.data : []);
+  }
+
+  // Map a raw Klipy item to the shape Wingspan uses elsewhere.
+  function klipyItemUrls(gif) {
+    const url = gif.file?.hd?.gif?.url || gif.file?.gif?.url;
+    if (!url) return null;
+    const thumbUrl = gif.file?.sm?.gif?.url
+                  || gif.file?.md?.gif?.url
+                  || gif.file?.xs?.gif?.url
+                  || url;
+    return { url, thumbUrl, title: gif.title || '' };
+  }
+
+  // ─── /tenor inline GIF autocomplete ──────────────────────────────────────
+  // Type `/tenor <query>` or `/gif <query>` at the start of the composer to
+  // pop a horizontal strip of Klipy GIFs above the input — Discord-style.
+  // Pick with click or Arrow keys + Enter; Esc closes. The slash command is
+  // wiped before the GIF is sent, so it never reaches the room.
+
+  const SLASH_RE       = /^\s*\/(tenor|gif)(?:\s+(.*))?$/i;
+  let slashTenorEl     = null;
+  let slashTenorQuery  = '__INIT__';
+  let slashTenorTimer  = null;
+  let slashTenorIndex  = 0;
+  let slashTenorCards  = [];
+
+  function installSlashTenor() {
+    const editor = document.querySelector('[data-editable-name="RoomInput"]');
+    if (!editor || editor.dataset.wingspanSlashBound) return;
+    editor.dataset.wingspanSlashBound = '1';
+
+    editor.addEventListener('input',   onSlashInput);
+    // Backup: catch edits that don't bubble as `input` (Slate suppresses
+    // input under some inputTypes). keyup runs after the edit settles.
+    editor.addEventListener('keyup',   onSlashInput);
+    editor.addEventListener('keydown', onSlashKeydown, true);
+    editor.addEventListener('blur',    onSlashBlur);
+  }
+
+  // Slate seeds editable text with zero-width markers (zwsp / zwnj / zwj /
+  // BOM) plus the odd nbsp; strip them before regex-testing so the slash
+  // command can anchor to the text the user actually typed.
+  const SLATE_NOISE_RE = /[​‌‍﻿ ]/g;
+
+  function readEditorText(editor) {
+    return (editor.textContent || '').replace(SLATE_NOISE_RE, '');
+  }
+
+  function onSlashInput(e) {
+    const text = readEditorText(e.target);
+    const m = text.match(SLASH_RE);
+    if (!m) { closeSlashTenor(); return; }
+    const q = (m[2] || '').trim();
+    openSlashTenor();
+    if (q === slashTenorQuery) return;
+    slashTenorQuery = q;
+    clearTimeout(slashTenorTimer);
+    slashTenorTimer = setTimeout(() => loadSlashTenor(q), CFG.DEBOUNCE_MS);
+  }
+
+  function onSlashKeydown(e) {
+    if (!slashTenorEl) return;
+    if (e.key === 'Escape') {
+      closeSlashTenor();
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (!slashTenorCards.length) return;
+    if (e.key === 'ArrowRight' || (e.key === 'Tab' && !e.shiftKey)) {
+      e.preventDefault(); e.stopPropagation();
+      moveSlashFocus(1);
+    } else if (e.key === 'ArrowLeft' || (e.key === 'Tab' && e.shiftKey)) {
+      e.preventDefault(); e.stopPropagation();
+      moveSlashFocus(-1);
+    } else if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault(); e.stopPropagation();
+      const card = slashTenorCards[slashTenorIndex];
+      if (card) card.click();
+    }
+  }
+
+  function onSlashBlur() {
+    // Defer so a click on a card lands first.
+    setTimeout(() => {
+      if (slashTenorEl && !slashTenorEl.contains(document.activeElement)) {
+        closeSlashTenor();
+      }
+    }, 200);
+  }
+
+  function moveSlashFocus(d) {
+    const n = slashTenorCards.length;
+    const next = (slashTenorIndex + d + n) % n;
+    slashTenorIndex = next;
+    slashTenorCards.forEach((c, i) =>
+      c.classList.toggle('wingspan-tenor-card-active', i === next));
+    slashTenorCards[next].scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
+  function openSlashTenor() {
+    if (slashTenorEl && slashTenorEl.isConnected) {
+      positionSlashTenor();
+      return;
+    }
+    slashTenorEl = document.createElement('div');
+    slashTenorEl.className = 'wingspan-tenor-picker';
+    slashTenorEl.innerHTML = `
+      <div class="wingspan-tenor-header">
+        <span class="wingspan-tenor-brand">GIF</span>
+        <span class="wingspan-tenor-via">via Klipy</span>
+        <span class="wingspan-tenor-query"></span>
+        <button class="wingspan-tenor-close" type="button" title="Close">✕</button>
+      </div>
+      <div class="wingspan-tenor-strip" data-wingspan="tenor-strip"></div>
+    `;
+    document.body.appendChild(slashTenorEl);
+    slashTenorEl.querySelector('.wingspan-tenor-close')
+      .addEventListener('mousedown', (e) => e.preventDefault());
+    slashTenorEl.querySelector('.wingspan-tenor-close')
+      .addEventListener('click', closeSlashTenor);
+    // Suppress mousedown on non-button surfaces so the editor keeps focus.
+    slashTenorEl.addEventListener('mousedown', (e) => {
+      if (!e.target.closest('button')) e.preventDefault();
+    });
+    positionSlashTenor();
+    window.addEventListener('resize', positionSlashTenor);
+    window.addEventListener('scroll', positionSlashTenor, true);
+  }
+
+  function positionSlashTenor() {
+    if (!slashTenorEl) return;
+    const composer = document.querySelector('.coabsl0');
+    if (!composer) return;
+    const r = composer.getBoundingClientRect();
+    slashTenorEl.style.left   = `${r.left}px`;
+    slashTenorEl.style.width  = `${r.width}px`;
+    slashTenorEl.style.bottom = `${Math.max(8, window.innerHeight - r.top + 8)}px`;
+  }
+
+  function closeSlashTenor() {
+    if (!slashTenorEl) return;
+    slashTenorEl.remove();
+    slashTenorEl    = null;
+    slashTenorQuery = '__INIT__';
+    slashTenorCards = [];
+    slashTenorIndex = 0;
+    window.removeEventListener('resize', positionSlashTenor);
+    window.removeEventListener('scroll', positionSlashTenor, true);
+  }
+
+  async function loadSlashTenor(q) {
+    if (!slashTenorEl) return;
+    const strip   = slashTenorEl.querySelector('[data-wingspan="tenor-strip"]');
+    const queryEl = slashTenorEl.querySelector('.wingspan-tenor-query');
+    queryEl.textContent = q ? `· ${q}` : '· trending';
+    strip.innerHTML = '<div class="wingspan-tenor-loader"></div>';
+    slashTenorCards = [];
+    slashTenorIndex = 0;
+
+    try {
+      if (!CFG.KLIPY_KEY) {
+        strip.innerHTML = '<div class="wingspan-tenor-empty">Set a Klipy key in Wingspan settings.</div>';
+        return;
+      }
+      const url = q
+        ? `${CFG.KLIPY_BASE}/${CFG.KLIPY_KEY}/gifs/search?q=${encodeURIComponent(q)}&per_page=12&page=1`
+        : `${CFG.KLIPY_BASE}/${CFG.KLIPY_KEY}/gifs/trending?per_page=12&page=1`;
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const items = klipyItems(await r.json());
+      if (!slashTenorEl) return;          // closed mid-flight
+      strip.innerHTML = '';
+      let added = 0;
+      items.forEach((gif, idx) => {
+        const u = klipyItemUrls(gif);
+        if (!u) return;
+        const card = document.createElement('button');
+        card.type      = 'button';
+        card.className = 'wingspan-tenor-card' + (added === 0 ? ' wingspan-tenor-card-active' : '');
+        card.title     = u.title;
+        const img = document.createElement('img');
+        img.src     = u.thumbUrl;
+        img.alt     = u.title || 'GIF';
+        img.loading = 'lazy';
+        card.appendChild(img);
+        card.addEventListener('click', () => pickSlashTenor(u));
+        strip.appendChild(card);
+        slashTenorCards.push(card);
+        added += 1;
+      });
+      if (!added) {
+        strip.innerHTML = '<div class="wingspan-tenor-empty">No GIFs found.</div>';
+      }
+    } catch (_) {
+      if (!slashTenorEl) return;
+      strip.innerHTML = '<div class="wingspan-tenor-empty">Klipy request failed.</div>';
+    }
+  }
+
+  async function pickSlashTenor(u) {
+    closeSlashTenor();
+    await clearComposerText();
+    insertGifAsAttachment(u.url, u.title || 'GIF');
+  }
+
+  // Wipe the composer. Cinny uses Slate-React, which keeps its value tree
+  // and selection state separate from the DOM. A bulk `deleteContent`
+  // dispatched against a DOM-Range selection regularly leaves Slate's
+  // internal selection dangling into nodes that no longer exist; the
+  // editor then silently drops every keystroke until the user navigates
+  // to another room. Simulating Backspace one character at a time keeps
+  // Slate's onBeforeInput pipeline on the well-trodden path it uses for
+  // real user input, and its selection stays coherent.
+  async function clearComposerText() {
+    const editor = document.querySelector('[data-editable-name="RoomInput"]');
+    if (!editor) return;
+
+    editor.focus();
+
+    // Park the caret at the end first; Backspace deletes leftward.
+    const endRange = document.createRange();
+    endRange.selectNodeContents(editor);
+    endRange.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(endRange);
+
+    await new Promise((r) => requestAnimationFrame(r));
+
+    const cap = readEditorText(editor).length + 8; // safety upper bound
+    for (let i = 0; i < cap; i++) {
+      if (!readEditorText(editor)) break;
+      editor.dispatchEvent(new InputEvent('beforeinput', {
+        inputType:  'deleteContentBackward',
+        bubbles:    true,
+        cancelable: true,
+      }));
+      await new Promise((r) => requestAnimationFrame(r));
+    }
+
+    // Re-focus so the next keystroke lands in the now-empty editor.
+    editor.focus();
   }
 
   async function loadTrending(page = 1) {
@@ -1217,6 +1484,7 @@
     if (!editor) return;
 
     if (btn) btn.classList.add('wingspan-uploading');
+    showSendingBanner(title);
 
     try {
       const res = await fetch(gifUrl);
@@ -1226,6 +1494,7 @@
       // Primary: Matrix API upload — works on Chrome and Firefox
       if (creds?.hsUrl && creds?.accessToken && resolveRoomId()) {
         await sendViaMatrix(blob, title);
+        hideSendingBanner();
         return;
       }
 
@@ -1239,12 +1508,79 @@
         bubbles:       true,
         cancelable:    true,
       }));
+      // Cinny now owns the send; we can't observe completion. Drop the banner.
+      hideSendingBanner();
     } catch (err) {
       console.error('[Wingspan] GIF attach error:', err);
-      showWingspanToast(`GIF failed: ${err.message}`, true);
+      failSendingBanner(err?.message || 'send failed');
     } finally {
       if (btn) btn.classList.remove('wingspan-uploading');
     }
+  }
+
+  // ─── "Sending …" banner above the composer ──────────────────────────────
+  // Lives above `.coabsl0` while an `insertGifAsAttachment()` call is in
+  // flight. Position-tracked via the same getBoundingClientRect dance as
+  // the /tenor picker so it survives layout shifts (sidebar toggle, etc.).
+
+  let sendingBannerEl    = null;
+  let sendingBannerHideT = null;
+
+  function showSendingBanner(title) {
+    cancelSendingBannerHide();
+    if (!sendingBannerEl) {
+      sendingBannerEl = document.createElement('div');
+      sendingBannerEl.className = 'wingspan-sending-banner';
+      sendingBannerEl.setAttribute('data-wingspan', 'sending-banner');
+      sendingBannerEl.innerHTML =
+        '<span class="wingspan-sending-spinner"></span>' +
+        '<span class="wingspan-sending-text"></span>';
+      document.body.appendChild(sendingBannerEl);
+      window.addEventListener('resize', positionSendingBanner);
+      window.addEventListener('scroll',  positionSendingBanner, true);
+    }
+    sendingBannerEl.classList.remove('wingspan-sending-error');
+    const label = (title || 'GIF').trim() || 'GIF';
+    sendingBannerEl.querySelector('.wingspan-sending-text').textContent =
+      `Sending ${label}…`;
+    positionSendingBanner();
+  }
+
+  function failSendingBanner(reason) {
+    if (!sendingBannerEl) showSendingBanner('');
+    sendingBannerEl.classList.add('wingspan-sending-error');
+    sendingBannerEl.querySelector('.wingspan-sending-text').textContent =
+      `GIF failed: ${reason}`;
+    positionSendingBanner();
+    // Keep the failure on-screen briefly so it isn't missed.
+    cancelSendingBannerHide();
+    sendingBannerHideT = setTimeout(hideSendingBanner, 3500);
+  }
+
+  function hideSendingBanner() {
+    cancelSendingBannerHide();
+    if (!sendingBannerEl) return;
+    sendingBannerEl.remove();
+    sendingBannerEl = null;
+    window.removeEventListener('resize', positionSendingBanner);
+    window.removeEventListener('scroll',  positionSendingBanner, true);
+  }
+
+  function cancelSendingBannerHide() {
+    if (sendingBannerHideT) {
+      clearTimeout(sendingBannerHideT);
+      sendingBannerHideT = null;
+    }
+  }
+
+  function positionSendingBanner() {
+    if (!sendingBannerEl) return;
+    const composer = document.querySelector('.coabsl0');
+    if (!composer) return;
+    const r = composer.getBoundingClientRect();
+    sendingBannerEl.style.left   = `${r.left}px`;
+    sendingBannerEl.style.width  = `${r.width}px`;
+    sendingBannerEl.style.bottom = `${Math.max(8, window.innerHeight - r.top + 8)}px`;
   }
 
   // ─── Chat GIF hover-to-play ───────────────────────────────────────────────
