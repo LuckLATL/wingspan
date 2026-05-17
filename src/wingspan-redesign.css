@@ -443,6 +443,15 @@ header[data-wingspan-banner].hru6be0 {
   background: var(--ws-divider) !important;
 }
 
+/* Nav rail (`._1ho1fyw0`) separators between DMs / spaces / action button
+   sections. The rail uses its own `._4yxtfd2` scroll wrapper, which the
+   general rule above excludes, so these fell through to folds' default and
+   blended into our dark rail (`--ws-bg-0`). Bring them back as faint pills. */
+._1ho1fyw0 ._1yan8dd1 {
+  background: rgba(255, 255, 255, 0.08) !important;
+  height: 1px !important;
+}
+
 /* Date dividers inside the message timeline. The flanking `<Line>`s use the
    Surface variant which compiles to `._1yan8dd4`. The "New Messages" line
    uses the Inherit variant (`_1yan8dd2`) and inherits its green colour
