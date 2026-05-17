@@ -37,6 +37,37 @@
   border-right: 0 !important;
 }
 
+/* Nav-rail icon buttons — Discord-style rounded square that morphs slightly
+   tighter on hover, with a soft surface base and accent fill on hover. The
+   `:not(:has(img))` exclusion leaves avatar buttons (rooms / spaces / DMs)
+   alone, per the earlier preference to keep profile picture shapes native. */
+._1ho1fyw3 > ._1684mq51:not(:has(img)) {
+  background: var(--ws-bg-1) !important;
+  color: var(--ws-text-mid) !important;
+  border-radius: 32% !important;
+  outline: 0 !important;
+  border: 0 !important;
+  transition: background 0.15s ease, color 0.15s ease, border-radius 0.18s ease !important;
+}
+
+._1ho1fyw3 > ._1684mq51:not(:has(img)):hover {
+  background: var(--ws-accent) !important;
+  color: var(--ws-text-hi) !important;
+  border-radius: 26% !important;
+}
+
+/* Active variant (`_1ho1fywd`) — keep the folds left-stripe indicator and
+   add a slightly elevated surface so it stands apart from the resting set. */
+._1ho1fyw3 > ._1684mq51._1ho1fywd:not(:has(img)) {
+  background: var(--ws-bg-2) !important;
+  color: var(--ws-text-hi) !important;
+  border-radius: 26% !important;
+}
+
+._1ho1fyw3 > ._1684mq51._1ho1fywd:not(:has(img)):hover {
+  background: var(--ws-accent) !important;
+}
+
 /* ── Sidebar headers (`.hru6be0` base) ──────────────────────────────────── */
 
 .hru6be0 {
