@@ -30,6 +30,12 @@
       "run_at": "document_idle"
     }
   ],
+  "web_accessible_resources": [
+    {
+      "resources": ["wingspan-redesign.css"],
+      "matches": ["*://*/*"]
+    }
+  ],
   "browser_specific_settings": {
     "gecko": {
       "id": "wingspan@cinny-extension",

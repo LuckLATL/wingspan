@@ -15,6 +15,7 @@ const DEFAULTS = {
   roomNicknames:   true,
   spaceCategories: true,
   fadeNoise:       true,
+  uiRedesign:      true,
   domains:         DEFAULT_DOMAINS.slice(),
 };
 
@@ -39,6 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
     $('roomNicknames').checked      = s.roomNicknames;
     $('spaceCategories').checked    = s.spaceCategories;
     $('fadeNoise').checked          = s.fadeNoise;
+    $('uiRedesign').checked         = s.uiRedesign;
     $('domains').value              = (Array.isArray(s.domains) ? s.domains : DEFAULT_DOMAINS).join('\n');
   });
 
@@ -58,6 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
       roomNicknames:   $('roomNicknames').checked,
       spaceCategories: $('spaceCategories').checked,
       fadeNoise:       $('fadeNoise').checked,
+      uiRedesign:      $('uiRedesign').checked,
       domains:         parseDomains($('domains').value),
     };
 

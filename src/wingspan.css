@@ -618,6 +618,7 @@ header[data-wingspan-banner] p {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
 }
 
+
 /* ── User profile banners ──────────────────────────────────────────────────
    Discord-inspired: each user row in the member list or DM list shows the
    user's profile banner image. A left-anchored dark gradient keeps the
@@ -1016,17 +1017,6 @@ body[data-wingspan-dragging-cat]  .wingspan-cat-header {
   color: rgba(255, 255, 255, 0.95);
 }
 
-/* ════════════════════════════════════════════════════════════════════════════
-   FLAT DISCORD MAKEOVER (v2 — keyed to live Cinny class hashes)
-   ════════════════════════════════════════════════════════════════════════════
-   Surface-level skin pass. Touches background / radius / color / hover only
-   so it never fights Cinny's measured layout — the room/member lists are
-   absolutely-positioned with a fixed row pitch, so any padding/margin tweak
-   on a row would silently push items off-screen.
-   Targets the actual hashed class names emitted by the current Cinny build
-   (verified against a live DOM dump on 2026-05-17). If a future Cinny release
-   re-shuffles the hashes, re-inspect and update the selectors below.
-   ──────────────────────────────────────────────────────────────────────────── */
 
 :root {
   --ws-accent:        #5865F2;
@@ -1045,336 +1035,87 @@ body[data-wingspan-dragging-cat]  .wingspan-cat-header {
   --ws-radius-lg:     12px;
 }
 
-/* ── Scrollbars: thin, neutral ───────────────────────────────────────────── */
-*::-webkit-scrollbar              { width: 8px; height: 8px; }
-*::-webkit-scrollbar-track        { background: transparent; }
-*::-webkit-scrollbar-thumb        {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 4px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-*::-webkit-scrollbar-thumb:hover  {
-  background: rgba(255, 255, 255, 0.18);
-  background-clip: padding-box;
-}
 
-/* ── Nav rail (Sidebar) — `._1ho1fyw0` is the 66px stack ─────────────────── */
 
-._1ho1fyw0 {
-  background: var(--ws-bg-0) !important;
-  border-right: 0 !important;
-}
+/* ── "X is following the conversation" indicator ────────────────────────
+   Bar sits just above the composer when other people have read up to the
+   latest message. We hide Cinny's original copy text and render a
+   Discord-style stack of follower avatars next to the CheckTwice icon.
+   content.js handles detection (`tagFollowingBar`) and avatar resolution. */
 
-/* ── Sidebar headers (`.hru6be0` base) ──────────────────────────────────── */
-
-.hru6be0 {
+[data-wingspan-following] {
   background: transparent !important;
-  border-bottom: 1px solid var(--ws-divider) !important;
+  padding: 4px 16px !important;
+  min-height: 24px !important;
+  transition: opacity 0.15s ease;
+  animation: ws-following-slide 0.25s ease-out;
 }
 
-/* ── Sidebar room / DM rows ──────────────────────────────────────────────
-   `.t4fedt8` wraps every row in the home sidebar; the inner anchor is
-   `.t4fedt2`; row text lives in `.t4fedto`. Selected row gets
-   `aria-selected="true"` on the wrapper. Rows are inside absolutely-
-   positioned `.a6xo8r0` slots, so we MUST NOT change padding/margin/height —
-   only background, color, radius. */
-
-.t4fedt8:not([data-wingspan-user-banner]) {
-  border-radius: var(--ws-radius-md) !important;
-  transition: background-color 0.1s ease;
-  /* Pull the visible fill in by 2px top/bottom so consecutive selected/hover
-     rows have a visible gap between them. Row slot pitch is fixed (36px), so
-     we can't change margin/height — clipping the background does it without
-     touching layout. */
-  background-clip: padding-box !important;
-  border-top:    1px solid transparent !important;
-  border-bottom: 1px solid transparent !important;
+@keyframes ws-following-slide {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-.t4fedt8:not([data-wingspan-user-banner]):hover {
-  background-color: var(--ws-bg-3) !important;
+[data-wingspan-following] p {
+  display: none !important;
 }
 
-.t4fedt8[aria-selected="true"]:not([data-wingspan-user-banner]) {
-  background-color: var(--ws-bg-3) !important;
-}
-
-.t4fedt8[aria-selected="true"] .t4fedto {
-  color: var(--ws-text-hi) !important;
-  font-weight: 600 !important;
-}
-
-/* ── Section dividers (`._1yan8dd1`) ────────────────────────────────────── */
-
-._1yan8dd1 {
-  background: var(--ws-divider) !important;
-  border: 0 !important;
-}
-
-/* ── Composer (`.coabsl0`) ───────────────────────────────────────────────
-   The composer outer is `.coabsl0`. Inside it: left+right `.coabsl1` button
-   strips, a `.coabsl2` scroll wrap, and `.coabsl3` (= [data-editable-name=
-   "RoomInput"]) is the editor. We restyle ONLY the outer — appearance only,
-   no layout shifts. */
-
-.coabsl0 {
-  background: var(--ws-bg-2) !important;
-  border-radius: var(--ws-radius-lg) !important;
-  box-shadow: inset 0 0 0 1px var(--ws-divider) !important;
-  transition: box-shadow 0.12s ease;
-}
-
-.coabsl0:focus-within {
-  box-shadow: inset 0 0 0 1px var(--ws-accent) !important;
-}
-
-/* Composer buttons — squircle hover. Already animated by an earlier rule. */
-.coabsl1 button:not(.wingspan-gif-btn) {
-  border-radius: var(--ws-radius-sm) !important;
-  transition: background 0.1s ease, color 0.1s ease;
-}
-.coabsl1 button:not(.wingspan-gif-btn):hover {
-  background: var(--ws-bg-3) !important;
-}
-
-/* Editor text colour — leave padding alone (Cinny sets min-height inline). */
-.coabsl3 {
-  color: var(--ws-text-hi) !important;
-}
-
-/* ── Icon buttons in headers (`.brs7ce5` base) ───────────────────────────
-   Used on every chrome icon button (search, members-toggle, encryption,
-   call, etc.). Already rounded by Cinny — we only tighten + add hover bg. */
-.brs7ce5:not(.wingspan-gif-btn):not(.wingspan-back-btn):not(.wingspan-gif-close) {
-  border-radius: var(--ws-radius-sm) !important;
-  transition: background 0.1s ease, color 0.1s ease;
-}
-.brs7ce5:not(.wingspan-gif-btn):not(.wingspan-back-btn):not(.wingspan-gif-close):hover {
-  background: var(--ws-bg-3) !important;
-}
-
-/* ── Messages (`._161nxvec` / `[data-message-item]`) ─────────────────────
-   Subtle hover band — Discord-style. The timeline is a flow layout (not
-   absolute-positioned), so padding tweaks are safe. */
-
-[data-message-item],
-._161nxvec {
-  transition: background 0.06s linear;
-}
-
-[data-message-item]:hover,
-._161nxvec:hover {
-  background: rgba(4, 4, 5, 0.07) !important;
-}
-
-/* Username in a message: bold + slight size bump. `._161nxveu` is the button
-   wrapper; `._161nxvev` is the inner <b> name. */
-._161nxveu {
-  font-size: 1rem !important;
-}
-._161nxvev {
-  font-weight: 600 !important;
-}
-
-/* Timestamps inside messages — softer */
-[data-message-item] time,
-._161nxvec time {
-  color: var(--ws-text-lo) !important;
-  font-size: 0.75rem !important;
-}
-
-/* ── Member list drawer (`._18fjf6z0` outer / `._18fjf6z1` header) ───────
-   Banner-styled rows from earlier Wingspan rules win where they overlap. */
-
-._18fjf6z0 { background: transparent !important; }
-._18fjf6z1 {
-  background: transparent !important;
-  border-bottom: 1px solid var(--ws-divider) !important;
-}
-
-/* Member group label (`._18fjf6z8`) — uppercase Discord-style caps */
-._18fjf6z8 {
-  text-transform: uppercase !important;
-  letter-spacing: 0.05em !important;
-  font-weight: 700 !important;
-  font-size: 11px !important;
-  color: var(--ws-text-lo) !important;
-}
-
-/* Member row button (`._13tt0gb6`) — squircle pill hover. Rows are absolutely
-   positioned via translateY, so radius + background only — no padding. */
-._13tt0gb6:not([data-wingspan-user-banner]) {
-  border-radius: var(--ws-radius-md) !important;
-  transition: background 0.1s ease;
-}
-._13tt0gb6:not([data-wingspan-user-banner]):hover {
-  background: var(--ws-bg-3) !important;
-}
-
-/* ── Sort/filter toggle buttons (`._1bv8u1w6`) ───────────────────────────
-   Examples: "Joined" / "A to Z" toggles, the "Rooms" collapse header in
-   the home sidebar. */
-._1bv8u1w6 {
-  border-radius: var(--ws-radius-md) !important;
-  transition: background 0.1s ease, color 0.1s ease;
-}
-._1bv8u1w6:hover {
-  background: var(--ws-bg-3) !important;
-  color: var(--ws-text-hi) !important;
-}
-
-/* ── Reaction chips on messages ──────────────────────────────────────────
-   No stable hashed class found in the dump; lean on aria-label / title which
-   the React component sets for accessibility. Layout-safe — these are inline. */
-
-[data-message-item] button[aria-label*="reaction" i],
-[data-message-item] button[title*="reaction" i] {
-  background: var(--ws-bg-2) !important;
-  border: 1px solid var(--ws-divider) !important;
-  border-radius: 999px !important;
-  font-size: 0.78rem !important;
-  transition: background 0.1s ease, border-color 0.1s ease;
-}
-
-[data-message-item] button[aria-label*="reaction" i]:hover,
-[data-message-item] button[title*="reaction" i]:hover {
-  background: var(--ws-bg-3) !important;
-  border-color: var(--ws-accent) !important;
-}
-
-/* ── Inline polish inside message body ───────────────────────────────────
-   `code`, `pre`, `blockquote` are flow-layout inside the message text body,
-   so padding/margin tweaks here are safe. */
-
-[data-message-item] code:not(pre code) {
-  background: var(--ws-bg-0) !important;
-  border-radius: 4px !important;
-  padding: 1px 4px !important;
-  font-size: 0.86em !important;
-  border: 1px solid var(--ws-divider) !important;
-}
-
-[data-message-item] pre {
-  background: var(--ws-bg-0) !important;
-  border-radius: var(--ws-radius-md) !important;
-  padding: 10px 12px !important;
-  border: 1px solid var(--ws-divider) !important;
-}
-
-[data-message-item] blockquote {
-  border-left: 3px solid var(--ws-bg-3) !important;
-  margin: 4px 0 !important;
-  padding: 2px 0 2px 10px !important;
-  color: var(--ws-text-mid) !important;
-}
-
-/* ── User profile popup card (Discord redesign) ──────────────────────────
-   Triggered on user-avatar/name click. Floats inside `#portalContainer` via
-   folds <PopOut>; the Menu inside is the card itself.
-   Hashes (verified from a live DOM dump):
-     ._1v6ozra1   = PopOut floating wrapper
-     ._1fptcza0   = Menu (card outer)
-     ._1o9o3681   = UserHero outer Box
-     ._1o9o3682   = UserHeroCoverContainer  (banner band, 96px)
-     ._1o9o3683   = UserHeroCover           (banner <img>)
-     ._1o9o3684   = UserHeroAvatarContainer (29px slot)
-     ._1o9o3685   = UserAvatarContainer     (absolute, holds avatar)
-     ._1o9o3686   = UserHeroAvatar          (avatar button frame)
-     ._1o9o3687   = UserHeroAvatarImg       (avatar <img>)
-     ._1xny9xl6   = Text size H4 (display name)
-     ._1xny9xlc   = Text size T200 (@handle)
-     ._1bv8u1w9   = Chip button size variant (server / share / power)
-     ._3ohmdt0    = Power-level color dot                                 */
-
-/* Card outer — dark surface, soft drop shadow, hairline border */
-._1fptcza0 {
-  background: var(--ws-bg-1) !important;
-  border-radius: 12px !important;
-  overflow: hidden !important;
-  box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.55),
-    0 0 0 1px var(--ws-divider) !important;
-}
-
-/* Banner band — slightly taller for a more Discord-like top */
-._1o9o3682 {
-  height: 100px !important;
-}
-
-/* Avatar positioning — shift slightly left so it sits with consistent padding
-   relative to the body content below. */
-._1o9o3685 {
-  background: transparent !important;
-  left: 16px !important;
-}
-
-/* Avatar frame — thick ring matching the card surface so the avatar pops
-   off the banner Discord-style. Shape is left to folds' default. */
-._1o9o3686 {
-  outline: 6px solid var(--ws-bg-1) !important;
-  outline-offset: 0 !important;
-}
-
-/* Body padding bump so the chips row breathes under the avatar.
-   The body block is the 2nd direct grandchild of the card root; we use a
-   structural selector to avoid touching the cover. */
-._1fptcza0 > div > div:nth-child(2) {
-  padding: 14px 16px 16px !important;
-}
-
-/* Display name (size H4) — bigger, tighter, bolder */
-._1fptcza0 p._1xny9xl6 {
-  font-size: 20px !important;
-  font-weight: 700 !important;
-  line-height: 1.2 !important;
-  color: var(--ws-text-hi) !important;
-}
-
-/* @handle (size T200) — muted, Discord-style small grey */
-._1fptcza0 p._1xny9xlc {
-  font-size: 13px !important;
-  color: var(--ws-text-mid) !important;
-}
-
-/* Chip buttons (server / share / power) — Discord pill with dark fill */
-._1fptcza0 ._1bv8u1w9 {
-  background: rgba(0, 0, 0, 0.32) !important;
-  border-radius: 6px !important;
-  padding: 4px 8px !important;
-  color: var(--ws-text-mid) !important;
-  transition: background 0.1s ease, color 0.1s ease;
-}
-
-._1fptcza0 ._1bv8u1w9:hover {
-  background: rgba(0, 0, 0, 0.55) !important;
-  color: var(--ws-text-hi) !important;
-}
-
-._1fptcza0 ._1bv8u1w9 svg {
+[data-wingspan-following] svg {
+  color: var(--ws-accent, #5865F2) !important;
   width: 14px !important;
   height: 14px !important;
-}
-
-/* Power color dot — clean disc */
-._3ohmdt0 {
-  border-radius: 50% !important;
-  width: 8px !important;
-  height: 8px !important;
   flex-shrink: 0;
+  opacity: 1 !important;
 }
 
-/* ── Reduced motion ─────────────────────────────────────────────────────── */
+[data-wingspan-followers] {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+}
+
+.wingspan-follower-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 30%;
+  overflow: hidden;
+  border: 2px solid var(--ws-bg-1, #2b2d31);
+  background: #444;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  margin-left: -6px;
+  flex-shrink: 0;
+  transition: transform 0.12s ease;
+  position: relative;
+}
+
+.wingspan-follower-avatar:first-child {
+  margin-left: 0;
+}
+
+.wingspan-follower-avatar:hover {
+  transform: translateY(-2px);
+  z-index: 1;
+}
+
+.wingspan-follower-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.wingspan-follower-more {
+  background: var(--ws-bg-3, #383a40) !important;
+  font-size: 9px;
+  color: var(--ws-text-mid, #b5bac1);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .t4fedt8,
-  .coabsl0,
-  ._161nxvec,
-  [data-message-item],
-  ._13tt0gb6,
-  ._1bv8u1w6,
-  .brs7ce5,
-  ._1ho1fyw3 ._1684mq5c,
-  ._1ho1fyw3 ._1684mq5d {
-    transition: none !important;
-  }
+  [data-wingspan-following] { animation: none !important; }
+  .wingspan-follower-avatar { transition: none !important; }
 }

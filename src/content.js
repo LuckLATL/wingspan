@@ -24,6 +24,7 @@
     ROOM_NICKNAMES:   true,
     SPACE_CATEGORIES: true,
     FADE_NOISE:       true,
+    UI_REDESIGN:      true,
     DOMAINS:          DEFAULT_DOMAINS.slice(),
   };
 
@@ -100,6 +101,7 @@
       roomNicknames:   CFG.ROOM_NICKNAMES,
       spaceCategories: CFG.SPACE_CATEGORIES,
       fadeNoise:       CFG.FADE_NOISE,
+      uiRedesign:      CFG.UI_REDESIGN,
       gifLimit:        CFG.GIF_LIMIT,
       domains:         CFG.DOMAINS,
       aliases:         { users: {}, rooms: {} },
@@ -111,7 +113,9 @@
       CFG.ROOM_NICKNAMES    = s.roomNicknames;
       CFG.SPACE_CATEGORIES  = s.spaceCategories;
       CFG.FADE_NOISE        = s.fadeNoise;
+      CFG.UI_REDESIGN       = !!s.uiRedesign;
       CFG.GIF_LIMIT         = s.gifLimit;
+      applyUiRedesignFlag();
       CFG.DOMAINS           = normalizeDomains(s.domains);
       aliases               = normalizeAliases(s.aliases);
       if (hostMatches(location.hostname, CFG.DOMAINS)) {
@@ -163,6 +167,10 @@
         } else {
           dimChatNoise();
         }
+      }
+      if (changes.uiRedesign) {
+        CFG.UI_REDESIGN = changes.uiRedesign.newValue;
+        applyUiRedesignFlag();
       }
       if (changes.aliases) {
         aliases = normalizeAliases(changes.aliases.newValue);
@@ -250,6 +258,49 @@
     };
   }
 
+  // Toggles the Wingspan UI redesign stylesheet. The redesign rules live in
+  // `wingspan-redesign.css`; we fetch the file text and inject it as an
+  // inline <style> element instead of using a <link> to the extension URL,
+  // because Firefox enforces the page's `style-src` CSP for cross-origin
+  // stylesheets and Cinny blocks `moz-extension://` URLs that way. Inline
+  // <style> is allowed by `'unsafe-inline'` which Cinny includes.
+  const REDESIGN_STYLE_ID = 'wingspan-redesign-stylesheet';
+  let redesignCssPromise  = null;
+
+  function loadRedesignCss() {
+    if (redesignCssPromise) return redesignCssPromise;
+    redesignCssPromise = (async () => {
+      try {
+        const runtime = (typeof browser !== 'undefined' ? browser : chrome).runtime;
+        const url = runtime.getURL('wingspan-redesign.css');
+        const r   = await fetch(url);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return await r.text();
+      } catch (err) {
+        console.error('[Wingspan] failed to load redesign CSS:', err);
+        return '';
+      }
+    })();
+    return redesignCssPromise;
+  }
+
+  async function applyUiRedesignFlag() {
+    const existing = document.getElementById(REDESIGN_STYLE_ID);
+    if (CFG.UI_REDESIGN) {
+      if (existing) return;
+      const cssText = await loadRedesignCss();
+      if (!cssText) return;
+      // Re-check after the await — another call may have already injected.
+      if (document.getElementById(REDESIGN_STYLE_ID)) return;
+      const style = document.createElement('style');
+      style.id          = REDESIGN_STYLE_ID;
+      style.textContent = cssText;
+      (document.head || document.documentElement).appendChild(style);
+    } else if (existing) {
+      existing.remove();
+    }
+  }
+
   function maybeStartPresence() {
     if (!presenceScheduled && creds?.accessToken) {
       presenceScheduled = true;
@@ -270,6 +321,7 @@
     if (CFG.ROOM_NICKNAMES)   applyAliases();
     if (CFG.SPACE_CATEGORIES) applyRoomCategories();
     if (CFG.FADE_NOISE)       dimChatNoise();
+    tagFollowingBar();
     injectLobbyFilter();
     injectLobbyBanner();
     if (CFG.USER_BANNERS)     injectUserBanners();
@@ -533,6 +585,207 @@
       if (kind) msg.setAttribute('data-wingspan-dim', kind);
       else      msg.removeAttribute('data-wingspan-dim');
     }
+  }
+
+  // ─── "X is following the conversation" indicator ────────────────────────
+  // Cinny renders this bar via the `RoomViewFollowing` recipe (hashed by
+  // vanilla-extract). Anchor on the distinctive copy text instead, then
+  // replace the "<b>name</b> is following the conversation." line with a
+  // Discord-style stack of follower avatars (CheckTwice icon stays put).
+  function tagFollowingBar() {
+    // 1. Detect any new bar; mark it so we can target it from CSS.
+    for (const el of document.querySelectorAll(
+      'button:not([data-wingspan-following]), div:not([data-wingspan-following])'
+    )) {
+      const txt = el.textContent;
+      if (!txt || txt.length > 250) continue;
+      if (!txt.includes('following the conversation')) continue;
+      // Filter out parent containers that incidentally include the phrase by
+      // requiring a CheckTwice icon directly next to the text.
+      if (!el.querySelector(':scope > svg, :scope > div > svg, :scope > span > svg')) continue;
+      el.setAttribute('data-wingspan-following', '1');
+    }
+    // 2. (Re-)decorate every known bar. Signature dedupe keeps this cheap.
+    for (const bar of document.querySelectorAll('[data-wingspan-following]')) {
+      decorateFollowingBar(bar);
+    }
+  }
+
+  function decorateFollowingBar(bar) {
+    const nameNodes = bar.querySelectorAll('b');
+    const names = [];
+    let othersCount = 0;
+    for (const n of nameNodes) {
+      const t = (n.textContent || '').trim();
+      if (!t) continue;
+      const othersMatch = t.match(/^(\d+)\s+others?$/i);
+      if (othersMatch) {
+        othersCount = parseInt(othersMatch[1], 10) || 0;
+        continue;
+      }
+      names.push(t);
+    }
+    if (!names.length && othersCount === 0) return;
+
+    const sig = `${names.join('|')}#+${othersCount}`;
+    const existingStack = bar.querySelector(':scope > [data-wingspan-followers]');
+    if (existingStack && bar.dataset.wingspanFollowingSig === sig) return;
+    bar.dataset.wingspanFollowingSig = sig;
+
+    let stack = existingStack;
+    if (!stack) {
+      stack = document.createElement('div');
+      stack.setAttribute('data-wingspan-followers', '1');
+      bar.appendChild(stack);
+    }
+    stack.innerHTML = '';
+
+    for (const name of names) {
+      const lookup = resolveAvatarByName(name);
+      const a = document.createElement('span');
+      a.className   = 'wingspan-follower-avatar';
+      a.title       = name;
+      if (lookup.src) {
+        const img = document.createElement('img');
+        img.src       = lookup.src;
+        img.alt       = name;
+        img.draggable = false;
+        a.appendChild(img);
+      } else {
+        a.textContent             = (name[0] || '?').toUpperCase();
+        a.style.backgroundColor   = followerInitialColor(name);
+      }
+      stack.appendChild(a);
+    }
+
+    if (othersCount > 0) {
+      const more = document.createElement('span');
+      more.className   = 'wingspan-follower-avatar wingspan-follower-more';
+      more.title       = `+${othersCount} more`;
+      more.textContent = `+${othersCount}`;
+      stack.appendChild(more);
+    }
+  }
+
+  // Resolution strategy:
+  //   1. Cheap synchronous DOM scan — find any on-screen `button[data-user-id]`
+  //      that already paints this display name + avatar. Hits the timeline,
+  //      member drawer, DM list, etc.
+  //   2. If no match, fall back to /joined_members for the current room
+  //      (cached). If that members map has the name, kick off a thumbnail
+  //      fetch and return src=null so the decorator paints an initial in the
+  //      meantime; once the thumbnail blob lands we nudge the bar to redecorate.
+  const followerMembersByRoom  = new Map(); // roomId -> { fetchedAt, byName: Map<displayname, {userId, mxc}>, promise? }
+  const followerAvatarByUserId = new Map(); // userId -> { blobUrl: string|null, status: 'pending'|'done' }
+  const FOLLOWER_MEMBERS_TTL   = 5 * 60_000;
+
+  function resolveAvatarByName(name) {
+    // (1) DOM lookup
+    for (const btn of document.querySelectorAll('button[data-user-id]')) {
+      const label = btn.querySelector('p, b');
+      if (!label) continue;
+      if ((label.textContent || '').trim() !== name) continue;
+      const img = btn.querySelector('img');
+      if (img?.src) {
+        return { src: img.src, userId: btn.getAttribute('data-user-id') };
+      }
+    }
+
+    // (2) Matrix members fallback
+    const roomId = resolveRoomId();
+    if (roomId && creds?.hsUrl && creds?.accessToken) {
+      const entry = followerMembersByRoom.get(roomId);
+      const fresh = entry && (Date.now() - entry.fetchedAt < FOLLOWER_MEMBERS_TTL);
+      if (!fresh) {
+        // Kick off a fetch; decoration will retry on the next scan once the
+        // members map (and any avatar thumbs) have landed.
+        ensureRoomMembersForFollowers(roomId);
+      } else {
+        const hit = entry.byName.get(name);
+        if (hit) {
+          const cached = followerAvatarByUserId.get(hit.userId);
+          if (cached?.blobUrl) {
+            return { src: cached.blobUrl, userId: hit.userId };
+          }
+          if (!cached && hit.mxc) {
+            fetchFollowerAvatarBlob(hit.userId, hit.mxc);
+          }
+          return { src: null, userId: hit.userId };
+        }
+      }
+    }
+
+    return { src: null, userId: null };
+  }
+
+  async function ensureRoomMembersForFollowers(roomId) {
+    const existing = followerMembersByRoom.get(roomId);
+    if (existing?.promise) return existing.promise;
+
+    const promise = (async () => {
+      try {
+        const url = `${creds.hsUrl}/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/joined_members`;
+        const r   = await fetch(url, { headers: { Authorization: `Bearer ${creds.accessToken}` } });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const j = await r.json();
+        const byName = new Map();
+        for (const [userId, info] of Object.entries(j.joined || {})) {
+          const dn = (info.display_name || userId).trim();
+          // Last writer wins on display-name collisions — same as Cinny.
+          byName.set(dn, { userId, mxc: info.avatar_url || null });
+        }
+        followerMembersByRoom.set(roomId, { fetchedAt: Date.now(), byName });
+      } catch (_) {
+        followerMembersByRoom.set(roomId, { fetchedAt: Date.now(), byName: new Map() });
+      } finally {
+        // Force every currently-rendered bar to re-decorate with the new data.
+        nudgeFollowerBars();
+      }
+    })();
+
+    followerMembersByRoom.set(roomId, {
+      fetchedAt: Date.now(),
+      byName:    new Map(),
+      promise,
+    });
+    return promise;
+  }
+
+  async function fetchFollowerAvatarBlob(userId, mxc) {
+    if (followerAvatarByUserId.has(userId)) return;
+    followerAvatarByUserId.set(userId, { status: 'pending', blobUrl: null });
+
+    let blobUrl = null;
+    try {
+      const m = (mxc || '').match(/^mxc:\/\/([^/]+)\/(.+)$/);
+      if (!m) throw new Error('bad mxc');
+      const [, server, mediaId] = m;
+      const url = `${creds.hsUrl}/_matrix/client/v1/media/thumbnail/${encodeURIComponent(server)}/${encodeURIComponent(mediaId)}?width=48&height=48&method=crop&allow_redirect=true`;
+      const r = await fetch(url, { headers: { Authorization: `Bearer ${creds.accessToken}` } });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const blob = await r.blob();
+      blobUrl = URL.createObjectURL(blob);
+    } catch (_) {
+      blobUrl = null;
+    }
+    followerAvatarByUserId.set(userId, { status: 'done', blobUrl });
+    nudgeFollowerBars();
+  }
+
+  // Clear the dedup signature on every visible follower bar so the next scan
+  // re-renders it with whatever new avatar data has arrived.
+  function nudgeFollowerBars() {
+    for (const bar of document.querySelectorAll('[data-wingspan-following]')) {
+      delete bar.dataset.wingspanFollowingSig;
+    }
+  }
+
+  // Stable hue per name for the initial-letter fallback.
+  function followerInitialColor(name) {
+    let h = 0;
+    for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
+    const hue = ((h % 360) + 360) % 360;
+    return `hsl(${hue}, 55%, 42%)`;
   }
 
   function revertUserBanners() {
