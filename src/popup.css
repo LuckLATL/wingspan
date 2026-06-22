@@ -87,6 +87,13 @@ body {
 .input::placeholder { color: rgba(255,255,255,0.2); }
 .input:focus { border-color: rgba(129,140,248,0.6); }
 
+select.input {
+  width: 100%;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+select.input option { background: #1e2124; color: #e5e7eb; }
+
 .input-multiline {
   width: 100%;
   min-height: 92px;

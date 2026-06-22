@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Wingspan",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Enhanced experience for the Cinny Matrix client.",
   "permissions": ["storage", "activeTab"],
   "action": {
@@ -16,6 +16,10 @@
     "https://api.klipy.com/*",
     "*://*/*"
   ],
+  "background": {
+    "service_worker": "background.js",
+    "scripts": ["background.js"]
+  },
   "content_scripts": [
     {
       "matches": ["*://*/*"],
@@ -28,6 +32,12 @@
       "js": ["content.js"],
       "css": ["wingspan.css"],
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["wingspan-redesign.css"],
+      "matches": ["*://*/*"]
     }
   ],
   "browser_specific_settings": {

@@ -47,6 +47,14 @@
     </label>
 
     <label class="toggle-row">
+      <span class="toggle-label">Render image &amp; GIF links inline</span>
+      <span class="toggle-wrap">
+        <input id="renderLinkImages" type="checkbox" class="toggle-input">
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+      </span>
+    </label>
+
+    <label class="toggle-row">
       <span class="toggle-label">Show presence dots on avatars</span>
       <span class="toggle-wrap">
         <input id="showPresence" type="checkbox" class="toggle-input">
@@ -85,6 +93,34 @@
         <span class="toggle-track"><span class="toggle-thumb"></span></span>
       </span>
     </label>
+
+    <label class="toggle-row">
+      <span class="toggle-label">UI redesign (flat Discord look)</span>
+      <span class="toggle-wrap">
+        <input id="uiRedesign" type="checkbox" class="toggle-input">
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+      </span>
+    </label>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="section">
+    <div class="section-label">Link previews</div>
+    <select id="linkPreviewMode" class="input">
+      <option value="off">Off — never render previews</option>
+      <option value="trusted">Trusted sites only (whitelist)</option>
+      <option value="all">All sites (dangerous)</option>
+    </select>
+    <div class="hint">
+      “Trusted” shows a <b>Preview</b> button on links from sites not listed
+      below — clicking it trusts that domain. “All” fetches every posted link,
+      which reveals your IP to any linked site.
+    </div>
+    <textarea id="linkPreviewTrusted" class="input input-multiline"
+              spellcheck="false" autocomplete="off"
+              placeholder="github.com&#10;youtube.com&#10;*.wikipedia.org"></textarea>
+    <div class="hint">Trusted domains, one per line. <code>*.example.com</code> matches subdomains.</div>
   </div>
 
   <div class="divider"></div>

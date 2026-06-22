@@ -1,0 +1,469 @@
+/* Wingspan — Discord-style UI redesign overlay
+   Loaded dynamically by content.js when CFG.UI_REDESIGN is on, and
+   removed when toggled off. The CSS variables this file references
+   (--ws-bg-*, --ws-accent, --ws-divider, ...) live in wingspan.css
+   so other Wingspan features (sending banner, /tenor picker, follower
+   indicator) keep their colours when the redesign is disabled. */
+
+/* ════════════════════════════════════════════════════════════════════════════
+   FLAT DISCORD MAKEOVER (v2 — keyed to live Cinny class hashes)
+   ════════════════════════════════════════════════════════════════════════════
+   Surface-level skin pass. Touches background / radius / color / hover only
+   so it never fights Cinny's measured layout — the room/member lists are
+   absolutely-positioned with a fixed row pitch, so any padding/margin tweak
+   on a row would silently push items off-screen.
+   Targets the actual hashed class names emitted by the current Cinny build
+   (verified against a live DOM dump on 2026-05-17). If a future Cinny release
+   re-shuffles the hashes, re-inspect and update the selectors below.
+   ──────────────────────────────────────────────────────────────────────────── */
+/* ── Scrollbars: thin, neutral ───────────────────────────────────────────── */
+*::-webkit-scrollbar              { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track        { background: transparent; }
+*::-webkit-scrollbar-thumb        {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover  {
+  background: rgba(255, 255, 255, 0.18);
+  background-clip: padding-box;
+}
+
+/* ── Nav rail (Sidebar) — `._1ho1fyw0` is the 66px stack ─────────────────── */
+
+._1ho1fyw0 {
+  background: var(--ws-bg-0) !important;
+  border-right: 0 !important;
+}
+
+/* Nav-rail icon buttons — Discord-style rounded square that morphs slightly
+   tighter on hover, with a soft surface base and accent fill on hover. The
+   `:not(:has(img))` exclusion leaves avatar buttons (rooms / spaces / DMs)
+   alone, per the earlier preference to keep profile picture shapes native. */
+._1ho1fyw3 > ._1684mq51:not(:has(img)) {
+  background: var(--ws-bg-1) !important;
+  color: var(--ws-text-mid) !important;
+  border-radius: 32% !important;
+  outline: 0 !important;
+  border: 0 !important;
+  transition: background 0.15s ease, color 0.15s ease, border-radius 0.18s ease !important;
+}
+
+._1ho1fyw3 > ._1684mq51:not(:has(img)):hover {
+  background: var(--ws-accent) !important;
+  color: var(--ws-text-hi) !important;
+  border-radius: 26% !important;
+}
+
+/* Active variant (`_1ho1fywd`) — keep the folds left-stripe indicator and
+   add a slightly elevated surface so it stands apart from the resting set. */
+._1ho1fyw3 > ._1684mq51._1ho1fywd:not(:has(img)) {
+  background: var(--ws-bg-2) !important;
+  color: var(--ws-text-hi) !important;
+  border-radius: 26% !important;
+}
+
+._1ho1fyw3 > ._1684mq51._1ho1fywd:not(:has(img)):hover {
+  background: var(--ws-accent) !important;
+}
+
+/* ── Sidebar headers (`.hru6be0` base) ──────────────────────────────────── */
+
+.hru6be0 {
+  background: transparent !important;
+  border-bottom: 1px solid var(--ws-divider) !important;
+}
+
+/* When the header is the space-name banner panel, the white divider line
+   visually clashes with the artwork behind it and breaks the row alignment
+   with the chat header next to it. Recolor it to match the dark bottom of
+   the banner's gradient overlay so it disappears into the bar. */
+header[data-wingspan-banner].hru6be0 {
+  border-bottom-color: rgba(0, 0, 0, 0.6) !important;
+}
+
+/* ── Sidebar room / DM rows ──────────────────────────────────────────────
+   `.t4fedt8` wraps every row in the home sidebar; the inner anchor is
+   `.t4fedt2`; row text lives in `.t4fedto`. Selected row gets
+   `aria-selected="true"` on the wrapper. Rows are inside absolutely-
+   positioned `.a6xo8r0` slots, so we MUST NOT change padding/margin/height —
+   only background, color, radius. */
+
+.t4fedt8:not([data-wingspan-user-banner]) {
+  border-radius: var(--ws-radius-md) !important;
+  transition: background-color 0.1s ease;
+  /* Pull the visible fill in by 2px top/bottom so consecutive selected/hover
+     rows have a visible gap between them. Row slot pitch is fixed (36px), so
+     we can't change margin/height — clipping the background does it without
+     touching layout. */
+  background-clip: padding-box !important;
+  border-top:    1px solid transparent !important;
+  border-bottom: 1px solid transparent !important;
+}
+
+.t4fedt8:not([data-wingspan-user-banner]):hover {
+  background-color: var(--ws-bg-3) !important;
+}
+
+.t4fedt8[aria-selected="true"]:not([data-wingspan-user-banner]) {
+  background-color: var(--ws-bg-3) !important;
+}
+
+.t4fedt8[aria-selected="true"] .t4fedto {
+  color: var(--ws-text-hi) !important;
+  font-weight: 600 !important;
+}
+
+/* ── Section dividers (`._1yan8dd1`) ────────────────────────────────────── */
+
+._1yan8dd1 {
+  background: var(--ws-divider) !important;
+  border: 0 !important;
+}
+
+/* ── Composer (`.coabsl0`) ───────────────────────────────────────────────
+   The composer outer is `.coabsl0`. Inside it: left+right `.coabsl1` button
+   strips, a `.coabsl2` scroll wrap, and `.coabsl3` (= [data-editable-name=
+   "RoomInput"]) is the editor. We restyle ONLY the outer — appearance only,
+   no layout shifts. */
+
+.coabsl0 {
+  background: var(--ws-bg-2) !important;
+  border-radius: var(--ws-radius-lg) !important;
+  box-shadow: inset 0 0 0 1px var(--ws-divider) !important;
+  transition: box-shadow 0.12s ease;
+}
+
+.coabsl0:focus-within {
+  box-shadow: inset 0 0 0 1px var(--ws-accent) !important;
+}
+
+/* Composer buttons — squircle hover. Already animated by an earlier rule. */
+.coabsl1 button:not(.wingspan-gif-btn) {
+  border-radius: var(--ws-radius-sm) !important;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+.coabsl1 button:not(.wingspan-gif-btn):hover {
+  background: var(--ws-bg-3) !important;
+}
+
+/* Editor text colour — leave padding alone (Cinny sets min-height inline). */
+.coabsl3 {
+  color: var(--ws-text-hi) !important;
+}
+
+/* ── Icon buttons in headers (`.brs7ce5` base) ───────────────────────────
+   Used on every chrome icon button (search, members-toggle, encryption,
+   call, etc.). Already rounded by Cinny — we only tighten + add hover bg. */
+.brs7ce5:not(.wingspan-gif-btn):not(.wingspan-back-btn):not(.wingspan-gif-close) {
+  border-radius: var(--ws-radius-sm) !important;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+.brs7ce5:not(.wingspan-gif-btn):not(.wingspan-back-btn):not(.wingspan-gif-close):hover {
+  background: var(--ws-bg-3) !important;
+}
+
+/* ── Messages (`._161nxvec` / `[data-message-item]`) ─────────────────────
+   Subtle hover band — Discord-style. The timeline is a flow layout (not
+   absolute-positioned), so padding tweaks are safe. */
+
+[data-message-item],
+._161nxvec {
+  transition: background 0.06s linear;
+}
+
+[data-message-item]:hover,
+._161nxvec:hover {
+  background: rgba(4, 4, 5, 0.07) !important;
+}
+
+/* Username in a message: bold + slight size bump. `._161nxveu` is the button
+   wrapper; `._161nxvev` is the inner <b> name. */
+._161nxveu {
+  font-size: 1rem !important;
+}
+._161nxvev {
+  font-weight: 600 !important;
+}
+
+/* Timestamps inside messages — softer */
+[data-message-item] time,
+._161nxvec time {
+  color: var(--ws-text-lo) !important;
+  font-size: 0.75rem !important;
+}
+
+/* ── Member list drawer (`._18fjf6z0` outer / `._18fjf6z1` header) ───────
+   Banner-styled rows from earlier Wingspan rules win where they overlap. */
+
+._18fjf6z0 { background: transparent !important; }
+._18fjf6z1 {
+  background: transparent !important;
+  border-bottom: 1px solid var(--ws-divider) !important;
+}
+
+/* Member group label (`._18fjf6z8`) — uppercase Discord-style caps */
+._18fjf6z8 {
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  font-weight: 700 !important;
+  font-size: 11px !important;
+  color: var(--ws-text-lo) !important;
+}
+
+/* Member row button (`._13tt0gb6`) — squircle pill hover. Rows are absolutely
+   positioned via translateY, so radius + background only — no padding. */
+._13tt0gb6:not([data-wingspan-user-banner]) {
+  border-radius: var(--ws-radius-md) !important;
+  transition: background 0.1s ease;
+}
+._13tt0gb6:not([data-wingspan-user-banner]):hover {
+  background: var(--ws-bg-3) !important;
+}
+
+/* The same recipe (`._13tt0gb6`) backs every item in folds <Menu> popups
+   (room context menu, user options, etc.). Cinny renders those items with
+   a handful of fill variants — Soft (`_13tt0gb8`), Primary (`_13tt0gba`),
+   Critical (`_13tt0gbe`), None (`_13tt0gbc`) — each carrying its own
+   background. Inside the popup card (`._1fptcza0`) we want a clean
+   transparent base so all items look uniform; Critical (danger) keeps
+   its red tint as a hint. */
+._1fptcza0 ._13tt0gb6 {
+  background: transparent !important;
+}
+
+._1fptcza0 ._13tt0gb6:hover {
+  background: var(--ws-bg-3) !important;
+}
+
+/* Critical / danger variant — subtle red tint on hover so destructive
+   actions still read as such. */
+._1fptcza0 ._13tt0gbe:hover {
+  background: rgba(248, 113, 113, 0.14) !important;
+}
+
+/* ── Sort/filter toggle buttons (`._1bv8u1w6`) ───────────────────────────
+   Examples: "Joined" / "A to Z" toggles, the "Rooms" collapse header in
+   the home sidebar. */
+._1bv8u1w6 {
+  border-radius: var(--ws-radius-md) !important;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+._1bv8u1w6:hover {
+  background: var(--ws-bg-3) !important;
+  color: var(--ws-text-hi) !important;
+}
+
+/* ── Reaction chips on messages ──────────────────────────────────────────
+   No stable hashed class found in the dump; lean on aria-label / title which
+   the React component sets for accessibility. Layout-safe — these are inline. */
+
+[data-message-item] button[aria-label*="reaction" i],
+[data-message-item] button[title*="reaction" i] {
+  background: var(--ws-bg-2) !important;
+  border: 1px solid var(--ws-divider) !important;
+  border-radius: 999px !important;
+  font-size: 0.78rem !important;
+  transition: background 0.1s ease, border-color 0.1s ease;
+}
+
+[data-message-item] button[aria-label*="reaction" i]:hover,
+[data-message-item] button[title*="reaction" i]:hover {
+  background: var(--ws-bg-3) !important;
+  border-color: var(--ws-accent) !important;
+}
+
+/* ── Inline polish inside message body ───────────────────────────────────
+   `code`, `pre`, `blockquote` are flow-layout inside the message text body,
+   so padding/margin tweaks here are safe. */
+
+[data-message-item] code:not(pre code) {
+  background: var(--ws-bg-0) !important;
+  border-radius: 4px !important;
+  padding: 1px 4px !important;
+  font-size: 0.86em !important;
+  border: 1px solid var(--ws-divider) !important;
+}
+
+[data-message-item] pre {
+  background: var(--ws-bg-0) !important;
+  border-radius: var(--ws-radius-md) !important;
+  padding: 10px 12px !important;
+  border: 1px solid var(--ws-divider) !important;
+}
+
+[data-message-item] blockquote {
+  border-left: 3px solid var(--ws-bg-3) !important;
+  margin: 4px 0 !important;
+  padding: 2px 0 2px 10px !important;
+  color: var(--ws-text-mid) !important;
+}
+
+/* ── User profile popup card (Discord redesign) ──────────────────────────
+   Triggered on user-avatar/name click. Floats inside `#portalContainer` via
+   folds <PopOut>; the Menu inside is the card itself.
+   Hashes (verified from a live DOM dump):
+     ._1v6ozra1   = PopOut floating wrapper
+     ._1fptcza0   = Menu (card outer)
+     ._1o9o3681   = UserHero outer Box
+     ._1o9o3682   = UserHeroCoverContainer  (banner band, 96px)
+     ._1o9o3683   = UserHeroCover           (banner <img>)
+     ._1o9o3684   = UserHeroAvatarContainer (29px slot)
+     ._1o9o3685   = UserAvatarContainer     (absolute, holds avatar)
+     ._1o9o3686   = UserHeroAvatar          (avatar button frame)
+     ._1o9o3687   = UserHeroAvatarImg       (avatar <img>)
+     ._1xny9xl6   = Text size H4 (display name)
+     ._1xny9xlc   = Text size T200 (@handle)
+     ._1bv8u1w9   = Chip button size variant (server / share / power)
+     ._3ohmdt0    = Power-level color dot                                 */
+
+/* Card outer — dark surface, soft drop shadow, hairline border.
+   `:not(._1fptcza3)` skips the message-action toolbar variant (which uses
+   the same Menu recipe with a slim modifier); we restyle that separately
+   below so it doesn't carry the heavy popup chrome. */
+._1fptcza0:not(._1fptcza3) {
+  background: var(--ws-bg-1) !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.55),
+    0 0 0 1px var(--ws-divider) !important;
+}
+
+/* Message-action toolbar (`._1fptcza3` variant) — small floating row that
+   appears on message hover with react / reply / options buttons. No card
+   border, slightly tighter shadow, and a transparent base on its buttons
+   so they all share the same tint regardless of folds fill variant. */
+._1fptcza0._1fptcza3 {
+  background: var(--ws-bg-1) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+}
+
+._1fptcza3 .brs7ce5 {
+  background: transparent !important;
+}
+
+._1fptcza3 .brs7ce5:hover {
+  background: var(--ws-bg-3) !important;
+}
+
+/* Banner band — slightly taller for a more Discord-like top */
+._1o9o3682 {
+  height: 100px !important;
+}
+
+/* Avatar positioning — shift slightly left so it sits with consistent padding
+   relative to the body content below. */
+._1o9o3685 {
+  background: transparent !important;
+  left: 16px !important;
+}
+
+/* Avatar frame — thick ring matching the card surface so the avatar pops
+   off the banner Discord-style. Shape is left to folds' default. */
+._1o9o3686 {
+  outline: 6px solid var(--ws-bg-1) !important;
+  outline-offset: 0 !important;
+}
+
+/* Body padding bump so the chips row breathes under the avatar.
+   The body block is the 2nd direct grandchild of the card root; we use a
+   structural selector to avoid touching the cover. */
+._1fptcza0 > div > div:nth-child(2) {
+  padding: 14px 16px 16px !important;
+}
+
+/* Display name (size H4) — bigger, tighter, bolder */
+._1fptcza0 p._1xny9xl6 {
+  font-size: 20px !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+  color: var(--ws-text-hi) !important;
+}
+
+/* @handle (size T200) — muted, Discord-style small grey */
+._1fptcza0 p._1xny9xlc {
+  font-size: 13px !important;
+  color: var(--ws-text-mid) !important;
+}
+
+/* Chip buttons (server / share / power) — Discord pill with dark fill */
+._1fptcza0 ._1bv8u1w9 {
+  background: rgba(0, 0, 0, 0.32) !important;
+  border-radius: 6px !important;
+  padding: 4px 8px !important;
+  color: var(--ws-text-mid) !important;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+
+._1fptcza0 ._1bv8u1w9:hover {
+  background: rgba(0, 0, 0, 0.55) !important;
+  color: var(--ws-text-hi) !important;
+}
+
+._1fptcza0 ._1bv8u1w9 svg {
+  width: 14px !important;
+  height: 14px !important;
+}
+
+/* Power color dot — clean disc */
+._3ohmdt0 {
+  border-radius: 50% !important;
+  width: 8px !important;
+  height: 8px !important;
+  flex-shrink: 0;
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .t4fedt8,
+  .coabsl0,
+  ._161nxvec,
+  [data-message-item],
+  ._13tt0gb6,
+  ._1bv8u1w6,
+  .brs7ce5,
+  ._1ho1fyw3 ._1684mq5c,
+  ._1ho1fyw3 ._1684mq5d {
+    transition: none !important;
+  }
+}
+/* ── Folds <Line> separators ──────────────────────────────────────────────
+   Cinny's folds Line component renders as `._1yan8dd1` and draws via the
+   element's background-color. Cinny's defaults are thicker greys; we
+   restyle to a subtle `--ws-divider` to match the rest of the chrome.
+   The `:not(._4yxtfd2 ._1yan8dd1)` exclusion keeps timeline dividers
+   alone — that's where the green "New Messages" Line lives (variant
+   "Inherit", coloured via parent currentColor) and where the date
+   dividers use folds' native Surface tone. Touching them would override
+   both colours back to grey. */
+._1yan8dd1:not(._4yxtfd2 ._1yan8dd1) {
+  background: var(--ws-divider) !important;
+}
+
+/* Nav rail (`._1ho1fyw0`) separators between DMs / spaces / action button
+   sections. The rail uses its own `._4yxtfd2` scroll wrapper, which the
+   general rule above excludes, so these fell through to folds' default and
+   blended into our dark rail (`--ws-bg-0`). Bring them back as faint pills. */
+._1ho1fyw0 ._1yan8dd1 {
+  background: rgba(255, 255, 255, 0.08) !important;
+  height: 1px !important;
+}
+
+/* Date dividers inside the message timeline. The flanking `<Line>`s use the
+   Surface variant which compiles to `._1yan8dd4`. The "New Messages" line
+   uses the Inherit variant (`_1yan8dd2`) and inherits its green colour
+   from the parent's `currentColor`. `--ws-divider` (6% white) is too faint
+   on top of the message bg here, so we bump the Surface variant to a more
+   visible band. Both get an explicit 1px height in case folds collapsed it. */
+._1yan8dd4 {
+  background: rgba(255, 255, 255, 0.15) !important;
+  height: 1px !important;
+}
+
+._1yan8dd2 {
+  background: currentColor !important;
+  height: 1px !important;
+}

@@ -10,11 +10,15 @@ const DEFAULT_DOMAINS = [
 const DEFAULTS = {
   klipyKey:        '',
   pauseChatGifs:   true,
+  renderLinkImages: true,
+  linkPreviewMode:    'trusted',
+  linkPreviewTrusted: [],
   showPresence:    true,
   userBanners:     true,
   roomNicknames:   true,
   spaceCategories: true,
   fadeNoise:       true,
+  uiRedesign:      true,
   domains:         DEFAULT_DOMAINS.slice(),
 };
 
@@ -34,11 +38,15 @@ document.addEventListener('DOMContentLoaded', () => {
   chrome.storage.local.get(DEFAULTS, (s) => {
     $('klipyKey').value             = s.klipyKey || '';
     $('pauseChatGifs').checked      = s.pauseChatGifs;
+    $('renderLinkImages').checked   = s.renderLinkImages;
+    $('linkPreviewMode').value      = s.linkPreviewMode || 'trusted';
+    $('linkPreviewTrusted').value   = (Array.isArray(s.linkPreviewTrusted) ? s.linkPreviewTrusted : []).join('\n');
     $('showPresence').checked       = s.showPresence;
     $('userBanners').checked        = s.userBanners;
     $('roomNicknames').checked      = s.roomNicknames;
     $('spaceCategories').checked    = s.spaceCategories;
     $('fadeNoise').checked          = s.fadeNoise;
+    $('uiRedesign').checked         = s.uiRedesign;
     $('domains').value              = (Array.isArray(s.domains) ? s.domains : DEFAULT_DOMAINS).join('\n');
   });
 
@@ -53,11 +61,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const settings = {
       klipyKey:        $('klipyKey').value.trim(),
       pauseChatGifs:   $('pauseChatGifs').checked,
+      renderLinkImages: $('renderLinkImages').checked,
+      linkPreviewMode:    $('linkPreviewMode').value,
+      linkPreviewTrusted: parseDomains($('linkPreviewTrusted').value),
       showPresence:    $('showPresence').checked,
       userBanners:     $('userBanners').checked,
       roomNicknames:   $('roomNicknames').checked,
       spaceCategories: $('spaceCategories').checked,
       fadeNoise:       $('fadeNoise').checked,
+      uiRedesign:      $('uiRedesign').checked,
       domains:         parseDomains($('domains').value),
     };
 

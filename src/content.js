@@ -19,11 +19,15 @@
     DEBOUNCE_MS:      250,
     FAV_KEY:          'wingspan_gif_favs',
     PAUSE_CHAT_GIFS:  true,
+    RENDER_LINK_IMAGES: true,
+    LINK_PREVIEW_MODE: 'trusted',   // 'all' | 'trusted' | 'off'
+    LINK_PREVIEW_TRUSTED: [],       // whitelist of domains for 'trusted' mode
     SHOW_PRESENCE:    true,
     USER_BANNERS:     true,
     ROOM_NICKNAMES:   true,
     SPACE_CATEGORIES: true,
     FADE_NOISE:       true,
+    UI_REDESIGN:      true,
     DOMAINS:          DEFAULT_DOMAINS.slice(),
   };
 
@@ -53,6 +57,18 @@
       if (s && !out.includes(s)) out.push(s);
     }
     return out.length ? out : DEFAULT_DOMAINS.slice();
+  }
+
+  // Like normalizeDomains but allows an empty result (used for the link-preview
+  // whitelist, where "no trusted domains" is a valid state).
+  function cleanDomainList(list) {
+    if (!Array.isArray(list)) return [];
+    const out = [];
+    for (const raw of list) {
+      const s = String(raw || '').trim().toLowerCase();
+      if (s && !out.includes(s)) out.push(s);
+    }
+    return out;
   }
 
   let bootedInner = false;
@@ -95,23 +111,32 @@
     chrome.storage.local.get({
       klipyKey:        CFG.KLIPY_KEY,
       pauseChatGifs:   CFG.PAUSE_CHAT_GIFS,
+      renderLinkImages: CFG.RENDER_LINK_IMAGES,
+      linkPreviewMode:    CFG.LINK_PREVIEW_MODE,
+      linkPreviewTrusted: CFG.LINK_PREVIEW_TRUSTED,
       showPresence:    CFG.SHOW_PRESENCE,
       userBanners:     CFG.USER_BANNERS,
       roomNicknames:   CFG.ROOM_NICKNAMES,
       spaceCategories: CFG.SPACE_CATEGORIES,
       fadeNoise:       CFG.FADE_NOISE,
+      uiRedesign:      CFG.UI_REDESIGN,
       gifLimit:        CFG.GIF_LIMIT,
       domains:         CFG.DOMAINS,
       aliases:         { users: {}, rooms: {} },
     }, (s) => {
       if (s.klipyKey)       CFG.KLIPY_KEY       = s.klipyKey;
       CFG.PAUSE_CHAT_GIFS   = s.pauseChatGifs;
+      CFG.RENDER_LINK_IMAGES = s.renderLinkImages;
+      CFG.LINK_PREVIEW_MODE    = s.linkPreviewMode || 'trusted';
+      CFG.LINK_PREVIEW_TRUSTED = cleanDomainList(s.linkPreviewTrusted);
       CFG.SHOW_PRESENCE     = s.showPresence;
       CFG.USER_BANNERS      = s.userBanners;
       CFG.ROOM_NICKNAMES    = s.roomNicknames;
       CFG.SPACE_CATEGORIES  = s.spaceCategories;
       CFG.FADE_NOISE        = s.fadeNoise;
+      CFG.UI_REDESIGN       = !!s.uiRedesign;
       CFG.GIF_LIMIT         = s.gifLimit;
+      applyUiRedesignFlag();
       CFG.DOMAINS           = normalizeDomains(s.domains);
       aliases               = normalizeAliases(s.aliases);
       if (hostMatches(location.hostname, CFG.DOMAINS)) {
@@ -126,6 +151,29 @@
       if (changes.klipyKey)      CFG.KLIPY_KEY      = changes.klipyKey.newValue;
       if (changes.gifLimit)      CFG.GIF_LIMIT       = changes.gifLimit.newValue;
       if (changes.pauseChatGifs) CFG.PAUSE_CHAT_GIFS = changes.pauseChatGifs.newValue;
+      if (changes.renderLinkImages) {
+        CFG.RENDER_LINK_IMAGES = changes.renderLinkImages.newValue;
+        // Image links move between the inline-media path and the preview path,
+        // so tear everything down and re-evaluate under the new setting.
+        document.querySelectorAll('.wingspan-link-media').forEach(el => el.remove());
+        document.querySelectorAll('[data-wingspan-link-img]').forEach(el => {
+          el.style.display = '';   // restore the raw link text we hid
+          el.removeAttribute('data-wingspan-link-img');
+        });
+        resetLinkPreviews();
+        if (CFG.RENDER_LINK_IMAGES) renderLinkImages();
+        if (CFG.LINK_PREVIEW_MODE !== 'off') renderLinkPreviews();
+      }
+      if (changes.linkPreviewMode) {
+        CFG.LINK_PREVIEW_MODE = changes.linkPreviewMode.newValue || 'off';
+        resetLinkPreviews();
+        if (CFG.LINK_PREVIEW_MODE !== 'off') renderLinkPreviews();
+      }
+      if (changes.linkPreviewTrusted) {
+        CFG.LINK_PREVIEW_TRUSTED = cleanDomainList(changes.linkPreviewTrusted.newValue);
+        resetLinkPreviews();
+        if (CFG.LINK_PREVIEW_MODE !== 'off') renderLinkPreviews();
+      }
       if (changes.showPresence) {
         CFG.SHOW_PRESENCE = changes.showPresence.newValue;
         if (!CFG.SHOW_PRESENCE) {
@@ -163,6 +211,10 @@
         } else {
           dimChatNoise();
         }
+      }
+      if (changes.uiRedesign) {
+        CFG.UI_REDESIGN = changes.uiRedesign.newValue;
+        applyUiRedesignFlag();
       }
       if (changes.aliases) {
         aliases = normalizeAliases(changes.aliases.newValue);
@@ -250,6 +302,49 @@
     };
   }
 
+  // Toggles the Wingspan UI redesign stylesheet. The redesign rules live in
+  // `wingspan-redesign.css`; we fetch the file text and inject it as an
+  // inline <style> element instead of using a <link> to the extension URL,
+  // because Firefox enforces the page's `style-src` CSP for cross-origin
+  // stylesheets and Cinny blocks `moz-extension://` URLs that way. Inline
+  // <style> is allowed by `'unsafe-inline'` which Cinny includes.
+  const REDESIGN_STYLE_ID = 'wingspan-redesign-stylesheet';
+  let redesignCssPromise  = null;
+
+  function loadRedesignCss() {
+    if (redesignCssPromise) return redesignCssPromise;
+    redesignCssPromise = (async () => {
+      try {
+        const runtime = (typeof browser !== 'undefined' ? browser : chrome).runtime;
+        const url = runtime.getURL('wingspan-redesign.css');
+        const r   = await fetch(url);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return await r.text();
+      } catch (err) {
+        console.error('[Wingspan] failed to load redesign CSS:', err);
+        return '';
+      }
+    })();
+    return redesignCssPromise;
+  }
+
+  async function applyUiRedesignFlag() {
+    const existing = document.getElementById(REDESIGN_STYLE_ID);
+    if (CFG.UI_REDESIGN) {
+      if (existing) return;
+      const cssText = await loadRedesignCss();
+      if (!cssText) return;
+      // Re-check after the await — another call may have already injected.
+      if (document.getElementById(REDESIGN_STYLE_ID)) return;
+      const style = document.createElement('style');
+      style.id          = REDESIGN_STYLE_ID;
+      style.textContent = cssText;
+      (document.head || document.documentElement).appendChild(style);
+    } else if (existing) {
+      existing.remove();
+    }
+  }
+
   function maybeStartPresence() {
     if (!presenceScheduled && creds?.accessToken) {
       presenceScheduled = true;
@@ -259,16 +354,23 @@
 
   function scan() {
     injectGifButton();
+    installSlashTenor();
     if (CFG.SHOW_PRESENCE)    injectPresenceDots();
     if (CFG.SHOW_PRESENCE)    injectStatusMessages();
     if (CFG.SHOW_PRESENCE)    injectDmListPresence();
     if (CFG.PAUSE_CHAT_GIFS)  pauseChatGifs();
+    if (CFG.RENDER_LINK_IMAGES) renderLinkImages();
+    if (CFG.LINK_PREVIEW_MODE !== 'off') renderLinkPreviews();
+    syncNativePreviews();
+    enhanceFileCards();
+    highlightMentions();
     injectImageViewerZoom();
     if (CFG.USER_BANNERS)     injectProfileBanners();
     if (CFG.ROOM_NICKNAMES)   injectAliasMenuButton();
     if (CFG.ROOM_NICKNAMES)   applyAliases();
     if (CFG.SPACE_CATEGORIES) applyRoomCategories();
     if (CFG.FADE_NOISE)       dimChatNoise();
+    tagFollowingBar();
     injectLobbyFilter();
     injectLobbyBanner();
     if (CFG.USER_BANNERS)     injectUserBanners();
@@ -481,11 +583,31 @@
   // Tag deleted messages and Matrix room/state events with `data-wingspan-dim`
   // so a CSS rule can fade them out — they're noise when you're skimming.
   // Hovering brings them back to full opacity so you can still read them.
+  //
+  // Detection signals (in priority order):
+  //   1. Italic "This message has been deleted" body → `deleted`.
+  //   2. `._161nxveb` on the message wrapper — Cinny tags every compact
+  //      state/event row with this hashed class. Covers m.room.member
+  //      (joins/leaves/invites/bans), m.room.name/avatar/topic changes,
+  //      m.room.encryption, m.room.power_levels, m.room.pinned_events,
+  //      m.call.* notices, integration/widget events, redaction notices,
+  //      and anything else Cinny renders without a clickable avatar.
+  //   3. Fallback regex on the compact-row visible text — only used when
+  //      the structural class isn't present (different Cinny build).
   const ROOM_EVENT_PATTERNS = [
     /state event\.?$/i,
     /(joined|left|rejoined) the room\.?$/i,
-    /changed (their|the) (avatar|name|display name|topic)/i,
+    /\bchanged (their|the|room) (avatar|name|display name|topic|alias)\b/i,
     /\b(invited|kicked|banned|unbanned|removed)\b/i,
+    /\b(started|ended|joined|left|missed|declined|answered) (a |the )?call\b/i,
+    /\bcall (started|ended)\b/i,
+    /\b(created|upgraded|replaced) (the )?room\b/i,
+    /\bencryption (enabled|enforced|turned on)\b/i,
+    /\benabled end-to-end encryption\b/i,
+    /\b(pinned|unpinned) (a |the )?message\b/i,
+    /\bchanged (the )?(power level|room alias|history visibility|guest access|join rule)/i,
+    /\b(set|removed) (the )?(room )?(avatar|topic|name)\b/i,
+    /\b(added|removed) (a |the )?widget\b/i,
   ];
   function dimChatNoise() {
     for (const msg of document.querySelectorAll('[data-message-item]')) {
@@ -494,9 +616,12 @@
       const italic = msg.querySelector('p > span > i');
       if (italic && /This message has been deleted/i.test(italic.textContent || '')) {
         kind = 'deleted';
+      } else if (msg.classList.contains('_161nxveb')) {
+        // Cinny's structural marker for any compact event/state row.
+        kind = 'room-event';
       } else if (!msg.querySelector('button[data-user-id]')) {
-        // Compact row — no clickable avatar — matched against the small set of
-        // canonical event phrasings so plain user text can't false-positive.
+        // Fallback path: text-based detection for builds where the marker
+        // class above has been rehashed away.
         const p = msg.querySelector('p');
         const pText = (p?.textContent || '').replace(/\s+/g, ' ').trim();
         if (pText && ROOM_EVENT_PATTERNS.some(re => re.test(pText))) {
@@ -509,6 +634,207 @@
       if (kind) msg.setAttribute('data-wingspan-dim', kind);
       else      msg.removeAttribute('data-wingspan-dim');
     }
+  }
+
+  // ─── "X is following the conversation" indicator ────────────────────────
+  // Cinny renders this bar via the `RoomViewFollowing` recipe (hashed by
+  // vanilla-extract). Anchor on the distinctive copy text instead, then
+  // replace the "<b>name</b> is following the conversation." line with a
+  // Discord-style stack of follower avatars (CheckTwice icon stays put).
+  function tagFollowingBar() {
+    // 1. Detect any new bar; mark it so we can target it from CSS.
+    for (const el of document.querySelectorAll(
+      'button:not([data-wingspan-following]), div:not([data-wingspan-following])'
+    )) {
+      const txt = el.textContent;
+      if (!txt || txt.length > 250) continue;
+      if (!txt.includes('following the conversation')) continue;
+      // Filter out parent containers that incidentally include the phrase by
+      // requiring a CheckTwice icon directly next to the text.
+      if (!el.querySelector(':scope > svg, :scope > div > svg, :scope > span > svg')) continue;
+      el.setAttribute('data-wingspan-following', '1');
+    }
+    // 2. (Re-)decorate every known bar. Signature dedupe keeps this cheap.
+    for (const bar of document.querySelectorAll('[data-wingspan-following]')) {
+      decorateFollowingBar(bar);
+    }
+  }
+
+  function decorateFollowingBar(bar) {
+    const nameNodes = bar.querySelectorAll('b');
+    const names = [];
+    let othersCount = 0;
+    for (const n of nameNodes) {
+      const t = (n.textContent || '').trim();
+      if (!t) continue;
+      const othersMatch = t.match(/^(\d+)\s+others?$/i);
+      if (othersMatch) {
+        othersCount = parseInt(othersMatch[1], 10) || 0;
+        continue;
+      }
+      names.push(t);
+    }
+    if (!names.length && othersCount === 0) return;
+
+    const sig = `${names.join('|')}#+${othersCount}`;
+    const existingStack = bar.querySelector(':scope > [data-wingspan-followers]');
+    if (existingStack && bar.dataset.wingspanFollowingSig === sig) return;
+    bar.dataset.wingspanFollowingSig = sig;
+
+    let stack = existingStack;
+    if (!stack) {
+      stack = document.createElement('div');
+      stack.setAttribute('data-wingspan-followers', '1');
+      bar.appendChild(stack);
+    }
+    stack.innerHTML = '';
+
+    for (const name of names) {
+      const lookup = resolveAvatarByName(name);
+      const a = document.createElement('span');
+      a.className   = 'wingspan-follower-avatar';
+      a.title       = name;
+      if (lookup.src) {
+        const img = document.createElement('img');
+        img.src       = lookup.src;
+        img.alt       = name;
+        img.draggable = false;
+        a.appendChild(img);
+      } else {
+        a.textContent             = (name[0] || '?').toUpperCase();
+        a.style.backgroundColor   = followerInitialColor(name);
+      }
+      stack.appendChild(a);
+    }
+
+    if (othersCount > 0) {
+      const more = document.createElement('span');
+      more.className   = 'wingspan-follower-avatar wingspan-follower-more';
+      more.title       = `+${othersCount} more`;
+      more.textContent = `+${othersCount}`;
+      stack.appendChild(more);
+    }
+  }
+
+  // Resolution strategy:
+  //   1. Cheap synchronous DOM scan — find any on-screen `button[data-user-id]`
+  //      that already paints this display name + avatar. Hits the timeline,
+  //      member drawer, DM list, etc.
+  //   2. If no match, fall back to /joined_members for the current room
+  //      (cached). If that members map has the name, kick off a thumbnail
+  //      fetch and return src=null so the decorator paints an initial in the
+  //      meantime; once the thumbnail blob lands we nudge the bar to redecorate.
+  const followerMembersByRoom  = new Map(); // roomId -> { fetchedAt, byName: Map<displayname, {userId, mxc}>, promise? }
+  const followerAvatarByUserId = new Map(); // userId -> { blobUrl: string|null, status: 'pending'|'done' }
+  const FOLLOWER_MEMBERS_TTL   = 5 * 60_000;
+
+  function resolveAvatarByName(name) {
+    // (1) DOM lookup
+    for (const btn of document.querySelectorAll('button[data-user-id]')) {
+      const label = btn.querySelector('p, b');
+      if (!label) continue;
+      if ((label.textContent || '').trim() !== name) continue;
+      const img = btn.querySelector('img');
+      if (img?.src) {
+        return { src: img.src, userId: btn.getAttribute('data-user-id') };
+      }
+    }
+
+    // (2) Matrix members fallback
+    const roomId = resolveRoomId();
+    if (roomId && creds?.hsUrl && creds?.accessToken) {
+      const entry = followerMembersByRoom.get(roomId);
+      const fresh = entry && (Date.now() - entry.fetchedAt < FOLLOWER_MEMBERS_TTL);
+      if (!fresh) {
+        // Kick off a fetch; decoration will retry on the next scan once the
+        // members map (and any avatar thumbs) have landed.
+        ensureRoomMembersForFollowers(roomId);
+      } else {
+        const hit = entry.byName.get(name);
+        if (hit) {
+          const cached = followerAvatarByUserId.get(hit.userId);
+          if (cached?.blobUrl) {
+            return { src: cached.blobUrl, userId: hit.userId };
+          }
+          if (!cached && hit.mxc) {
+            fetchFollowerAvatarBlob(hit.userId, hit.mxc);
+          }
+          return { src: null, userId: hit.userId };
+        }
+      }
+    }
+
+    return { src: null, userId: null };
+  }
+
+  async function ensureRoomMembersForFollowers(roomId) {
+    const existing = followerMembersByRoom.get(roomId);
+    if (existing?.promise) return existing.promise;
+
+    const promise = (async () => {
+      try {
+        const url = `${creds.hsUrl}/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/joined_members`;
+        const r   = await fetch(url, { headers: { Authorization: `Bearer ${creds.accessToken}` } });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const j = await r.json();
+        const byName = new Map();
+        for (const [userId, info] of Object.entries(j.joined || {})) {
+          const dn = (info.display_name || userId).trim();
+          // Last writer wins on display-name collisions — same as Cinny.
+          byName.set(dn, { userId, mxc: info.avatar_url || null });
+        }
+        followerMembersByRoom.set(roomId, { fetchedAt: Date.now(), byName });
+      } catch (_) {
+        followerMembersByRoom.set(roomId, { fetchedAt: Date.now(), byName: new Map() });
+      } finally {
+        // Force every currently-rendered bar to re-decorate with the new data.
+        nudgeFollowerBars();
+      }
+    })();
+
+    followerMembersByRoom.set(roomId, {
+      fetchedAt: Date.now(),
+      byName:    new Map(),
+      promise,
+    });
+    return promise;
+  }
+
+  async function fetchFollowerAvatarBlob(userId, mxc) {
+    if (followerAvatarByUserId.has(userId)) return;
+    followerAvatarByUserId.set(userId, { status: 'pending', blobUrl: null });
+
+    let blobUrl = null;
+    try {
+      const m = (mxc || '').match(/^mxc:\/\/([^/]+)\/(.+)$/);
+      if (!m) throw new Error('bad mxc');
+      const [, server, mediaId] = m;
+      const url = `${creds.hsUrl}/_matrix/client/v1/media/thumbnail/${encodeURIComponent(server)}/${encodeURIComponent(mediaId)}?width=48&height=48&method=crop&allow_redirect=true`;
+      const r = await fetch(url, { headers: { Authorization: `Bearer ${creds.accessToken}` } });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const blob = await r.blob();
+      blobUrl = URL.createObjectURL(blob);
+    } catch (_) {
+      blobUrl = null;
+    }
+    followerAvatarByUserId.set(userId, { status: 'done', blobUrl });
+    nudgeFollowerBars();
+  }
+
+  // Clear the dedup signature on every visible follower bar so the next scan
+  // re-renders it with whatever new avatar data has arrived.
+  function nudgeFollowerBars() {
+    for (const bar of document.querySelectorAll('[data-wingspan-following]')) {
+      delete bar.dataset.wingspanFollowingSig;
+    }
+  }
+
+  // Stable hue per name for the initial-letter fallback.
+  function followerInitialColor(name) {
+    let h = 0;
+    for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
+    const hue = ((h % 360) + 360) % 360;
+    return `hsl(${hue}, 55%, 42%)`;
   }
 
   function revertUserBanners() {
@@ -627,11 +953,11 @@
     btn.setAttribute('title', 'Insert GIF (Wingspan)');
     btn.className = 'wingspan-gif-btn';
     btn.innerHTML = `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20">
-        <rect x="2" y="5" width="20" height="14" rx="3"
-              stroke="currentColor" stroke-width="1.5" fill="none"/>
-        <text x="12" y="15.5" font-family="sans-serif" font-weight="800"
-              font-size="8" fill="currentColor" text-anchor="middle">GIF</text>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+        <rect x="3" y="3" width="18" height="18" rx="4"
+              stroke="currentColor" stroke-width="1.6" fill="none"/>
+        <text x="12" y="15.4" font-family="sans-serif" font-weight="800"
+              font-size="8.5" fill="currentColor" text-anchor="middle">GIF</text>
       </svg>`;
 
     btn.addEventListener('click', (e) => {
@@ -853,6 +1179,249 @@
     // Response is { result, data: { data: [...] } } or { result, data: [...] }
     const d = body?.data;
     return Array.isArray(d) ? d : (Array.isArray(d?.data) ? d.data : []);
+  }
+
+  // Map a raw Klipy item to the shape Wingspan uses elsewhere.
+  function klipyItemUrls(gif) {
+    const url = gif.file?.hd?.gif?.url || gif.file?.gif?.url;
+    if (!url) return null;
+    const thumbUrl = gif.file?.sm?.gif?.url
+                  || gif.file?.md?.gif?.url
+                  || gif.file?.xs?.gif?.url
+                  || url;
+    return { url, thumbUrl, title: gif.title || '' };
+  }
+
+  // ─── /tenor inline GIF autocomplete ──────────────────────────────────────
+  // Type `/tenor <query>` or `/gif <query>` at the start of the composer to
+  // pop a horizontal strip of Klipy GIFs above the input — Discord-style.
+  // Pick with click or Arrow keys + Enter; Esc closes. The slash command is
+  // wiped before the GIF is sent, so it never reaches the room.
+
+  const SLASH_RE       = /^\s*\/(tenor|gif)(?:\s+(.*))?$/i;
+  let slashTenorEl     = null;
+  let slashTenorQuery  = '__INIT__';
+  let slashTenorTimer  = null;
+  let slashTenorIndex  = 0;
+  let slashTenorCards  = [];
+
+  function installSlashTenor() {
+    const editor = document.querySelector('[data-editable-name="RoomInput"]');
+    if (!editor || editor.dataset.wingspanSlashBound) return;
+    editor.dataset.wingspanSlashBound = '1';
+
+    editor.addEventListener('input',   onSlashInput);
+    // Backup: catch edits that don't bubble as `input` (Slate suppresses
+    // input under some inputTypes). keyup runs after the edit settles.
+    editor.addEventListener('keyup',   onSlashInput);
+    editor.addEventListener('keydown', onSlashKeydown, true);
+    editor.addEventListener('blur',    onSlashBlur);
+  }
+
+  // Slate seeds editable text with zero-width markers (zwsp / zwnj / zwj /
+  // BOM) plus the odd nbsp; strip them before regex-testing so the slash
+  // command can anchor to the text the user actually typed.
+  const SLATE_NOISE_RE = /[​‌‍﻿ ]/g;
+
+  function readEditorText(editor) {
+    return (editor.textContent || '').replace(SLATE_NOISE_RE, '');
+  }
+
+  function onSlashInput(e) {
+    const text = readEditorText(e.target);
+    const m = text.match(SLASH_RE);
+    if (!m) { closeSlashTenor(); return; }
+    const q = (m[2] || '').trim();
+    openSlashTenor();
+    if (q === slashTenorQuery) return;
+    slashTenorQuery = q;
+    clearTimeout(slashTenorTimer);
+    slashTenorTimer = setTimeout(() => loadSlashTenor(q), CFG.DEBOUNCE_MS);
+  }
+
+  function onSlashKeydown(e) {
+    if (!slashTenorEl) return;
+    if (e.key === 'Escape') {
+      closeSlashTenor();
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (!slashTenorCards.length) return;
+    if (e.key === 'ArrowRight' || (e.key === 'Tab' && !e.shiftKey)) {
+      e.preventDefault(); e.stopPropagation();
+      moveSlashFocus(1);
+    } else if (e.key === 'ArrowLeft' || (e.key === 'Tab' && e.shiftKey)) {
+      e.preventDefault(); e.stopPropagation();
+      moveSlashFocus(-1);
+    } else if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault(); e.stopPropagation();
+      const card = slashTenorCards[slashTenorIndex];
+      if (card) card.click();
+    }
+  }
+
+  function onSlashBlur() {
+    // Defer so a click on a card lands first.
+    setTimeout(() => {
+      if (slashTenorEl && !slashTenorEl.contains(document.activeElement)) {
+        closeSlashTenor();
+      }
+    }, 200);
+  }
+
+  function moveSlashFocus(d) {
+    const n = slashTenorCards.length;
+    const next = (slashTenorIndex + d + n) % n;
+    slashTenorIndex = next;
+    slashTenorCards.forEach((c, i) =>
+      c.classList.toggle('wingspan-tenor-card-active', i === next));
+    slashTenorCards[next].scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
+  function openSlashTenor() {
+    if (slashTenorEl && slashTenorEl.isConnected) {
+      positionSlashTenor();
+      return;
+    }
+    slashTenorEl = document.createElement('div');
+    slashTenorEl.className = 'wingspan-tenor-picker';
+    slashTenorEl.innerHTML = `
+      <div class="wingspan-tenor-header">
+        <span class="wingspan-tenor-brand">GIF</span>
+        <span class="wingspan-tenor-via">via Klipy</span>
+        <span class="wingspan-tenor-query"></span>
+        <button class="wingspan-tenor-close" type="button" title="Close">✕</button>
+      </div>
+      <div class="wingspan-tenor-strip" data-wingspan="tenor-strip"></div>
+    `;
+    document.body.appendChild(slashTenorEl);
+    slashTenorEl.querySelector('.wingspan-tenor-close')
+      .addEventListener('mousedown', (e) => e.preventDefault());
+    slashTenorEl.querySelector('.wingspan-tenor-close')
+      .addEventListener('click', closeSlashTenor);
+    // Suppress mousedown on non-button surfaces so the editor keeps focus.
+    slashTenorEl.addEventListener('mousedown', (e) => {
+      if (!e.target.closest('button')) e.preventDefault();
+    });
+    positionSlashTenor();
+    window.addEventListener('resize', positionSlashTenor);
+    window.addEventListener('scroll', positionSlashTenor, true);
+  }
+
+  function positionSlashTenor() {
+    if (!slashTenorEl) return;
+    const composer = document.querySelector('.coabsl0');
+    if (!composer) return;
+    const r = composer.getBoundingClientRect();
+    slashTenorEl.style.left   = `${r.left}px`;
+    slashTenorEl.style.width  = `${r.width}px`;
+    slashTenorEl.style.bottom = `${Math.max(8, window.innerHeight - r.top + 8)}px`;
+  }
+
+  function closeSlashTenor() {
+    if (!slashTenorEl) return;
+    slashTenorEl.remove();
+    slashTenorEl    = null;
+    slashTenorQuery = '__INIT__';
+    slashTenorCards = [];
+    slashTenorIndex = 0;
+    window.removeEventListener('resize', positionSlashTenor);
+    window.removeEventListener('scroll', positionSlashTenor, true);
+  }
+
+  async function loadSlashTenor(q) {
+    if (!slashTenorEl) return;
+    const strip   = slashTenorEl.querySelector('[data-wingspan="tenor-strip"]');
+    const queryEl = slashTenorEl.querySelector('.wingspan-tenor-query');
+    queryEl.textContent = q ? `· ${q}` : '· trending';
+    strip.innerHTML = '<div class="wingspan-tenor-loader"></div>';
+    slashTenorCards = [];
+    slashTenorIndex = 0;
+
+    try {
+      if (!CFG.KLIPY_KEY) {
+        strip.innerHTML = '<div class="wingspan-tenor-empty">Set a Klipy key in Wingspan settings.</div>';
+        return;
+      }
+      const url = q
+        ? `${CFG.KLIPY_BASE}/${CFG.KLIPY_KEY}/gifs/search?q=${encodeURIComponent(q)}&per_page=12&page=1`
+        : `${CFG.KLIPY_BASE}/${CFG.KLIPY_KEY}/gifs/trending?per_page=12&page=1`;
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const items = klipyItems(await r.json());
+      if (!slashTenorEl) return;          // closed mid-flight
+      strip.innerHTML = '';
+      let added = 0;
+      items.forEach((gif, idx) => {
+        const u = klipyItemUrls(gif);
+        if (!u) return;
+        const card = document.createElement('button');
+        card.type      = 'button';
+        card.className = 'wingspan-tenor-card' + (added === 0 ? ' wingspan-tenor-card-active' : '');
+        card.title     = u.title;
+        const img = document.createElement('img');
+        img.src     = u.thumbUrl;
+        img.alt     = u.title || 'GIF';
+        img.loading = 'lazy';
+        card.appendChild(img);
+        card.addEventListener('click', () => pickSlashTenor(u));
+        strip.appendChild(card);
+        slashTenorCards.push(card);
+        added += 1;
+      });
+      if (!added) {
+        strip.innerHTML = '<div class="wingspan-tenor-empty">No GIFs found.</div>';
+      }
+    } catch (_) {
+      if (!slashTenorEl) return;
+      strip.innerHTML = '<div class="wingspan-tenor-empty">Klipy request failed.</div>';
+    }
+  }
+
+  async function pickSlashTenor(u) {
+    closeSlashTenor();
+    await clearComposerText();
+    insertGifAsAttachment(u.url, u.title || 'GIF');
+  }
+
+  // Wipe the composer. Cinny uses Slate-React, which keeps its value tree
+  // and selection state separate from the DOM. A bulk `deleteContent`
+  // dispatched against a DOM-Range selection regularly leaves Slate's
+  // internal selection dangling into nodes that no longer exist; the
+  // editor then silently drops every keystroke until the user navigates
+  // to another room. Simulating Backspace one character at a time keeps
+  // Slate's onBeforeInput pipeline on the well-trodden path it uses for
+  // real user input, and its selection stays coherent.
+  async function clearComposerText() {
+    const editor = document.querySelector('[data-editable-name="RoomInput"]');
+    if (!editor) return;
+
+    editor.focus();
+
+    // Park the caret at the end first; Backspace deletes leftward.
+    const endRange = document.createRange();
+    endRange.selectNodeContents(editor);
+    endRange.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(endRange);
+
+    await new Promise((r) => requestAnimationFrame(r));
+
+    const cap = readEditorText(editor).length + 8; // safety upper bound
+    for (let i = 0; i < cap; i++) {
+      if (!readEditorText(editor)) break;
+      editor.dispatchEvent(new InputEvent('beforeinput', {
+        inputType:  'deleteContentBackward',
+        bubbles:    true,
+        cancelable: true,
+      }));
+      await new Promise((r) => requestAnimationFrame(r));
+    }
+
+    // Re-focus so the next keystroke lands in the now-empty editor.
+    editor.focus();
   }
 
   async function loadTrending(page = 1) {
@@ -1217,6 +1786,7 @@
     if (!editor) return;
 
     if (btn) btn.classList.add('wingspan-uploading');
+    showSendingBanner(title);
 
     try {
       const res = await fetch(gifUrl);
@@ -1226,6 +1796,7 @@
       // Primary: Matrix API upload — works on Chrome and Firefox
       if (creds?.hsUrl && creds?.accessToken && resolveRoomId()) {
         await sendViaMatrix(blob, title);
+        hideSendingBanner();
         return;
       }
 
@@ -1239,12 +1810,79 @@
         bubbles:       true,
         cancelable:    true,
       }));
+      // Cinny now owns the send; we can't observe completion. Drop the banner.
+      hideSendingBanner();
     } catch (err) {
       console.error('[Wingspan] GIF attach error:', err);
-      showWingspanToast(`GIF failed: ${err.message}`, true);
+      failSendingBanner(err?.message || 'send failed');
     } finally {
       if (btn) btn.classList.remove('wingspan-uploading');
     }
+  }
+
+  // ─── "Sending …" banner above the composer ──────────────────────────────
+  // Lives above `.coabsl0` while an `insertGifAsAttachment()` call is in
+  // flight. Position-tracked via the same getBoundingClientRect dance as
+  // the /tenor picker so it survives layout shifts (sidebar toggle, etc.).
+
+  let sendingBannerEl    = null;
+  let sendingBannerHideT = null;
+
+  function showSendingBanner(title) {
+    cancelSendingBannerHide();
+    if (!sendingBannerEl) {
+      sendingBannerEl = document.createElement('div');
+      sendingBannerEl.className = 'wingspan-sending-banner';
+      sendingBannerEl.setAttribute('data-wingspan', 'sending-banner');
+      sendingBannerEl.innerHTML =
+        '<span class="wingspan-sending-spinner"></span>' +
+        '<span class="wingspan-sending-text"></span>';
+      document.body.appendChild(sendingBannerEl);
+      window.addEventListener('resize', positionSendingBanner);
+      window.addEventListener('scroll',  positionSendingBanner, true);
+    }
+    sendingBannerEl.classList.remove('wingspan-sending-error');
+    const label = (title || 'GIF').trim() || 'GIF';
+    sendingBannerEl.querySelector('.wingspan-sending-text').textContent =
+      `Sending ${label}…`;
+    positionSendingBanner();
+  }
+
+  function failSendingBanner(reason) {
+    if (!sendingBannerEl) showSendingBanner('');
+    sendingBannerEl.classList.add('wingspan-sending-error');
+    sendingBannerEl.querySelector('.wingspan-sending-text').textContent =
+      `GIF failed: ${reason}`;
+    positionSendingBanner();
+    // Keep the failure on-screen briefly so it isn't missed.
+    cancelSendingBannerHide();
+    sendingBannerHideT = setTimeout(hideSendingBanner, 3500);
+  }
+
+  function hideSendingBanner() {
+    cancelSendingBannerHide();
+    if (!sendingBannerEl) return;
+    sendingBannerEl.remove();
+    sendingBannerEl = null;
+    window.removeEventListener('resize', positionSendingBanner);
+    window.removeEventListener('scroll',  positionSendingBanner, true);
+  }
+
+  function cancelSendingBannerHide() {
+    if (sendingBannerHideT) {
+      clearTimeout(sendingBannerHideT);
+      sendingBannerHideT = null;
+    }
+  }
+
+  function positionSendingBanner() {
+    if (!sendingBannerEl) return;
+    const composer = document.querySelector('.coabsl0');
+    if (!composer) return;
+    const r = composer.getBoundingClientRect();
+    sendingBannerEl.style.left   = `${r.left}px`;
+    sendingBannerEl.style.width  = `${r.width}px`;
+    sendingBannerEl.style.bottom = `${Math.max(8, window.innerHeight - r.top + 8)}px`;
   }
 
   // ─── Chat GIF hover-to-play ───────────────────────────────────────────────
@@ -1271,6 +1909,7 @@
       const blob = await res.blob();
 
       if (!blob.type.includes('image/gif')) {
+        if (!img.src) img.src = src;   // injected link media starts srcless — show it
         img.setAttribute('data-wingspan-gif', 'skip');
         return;
       }
@@ -1285,6 +1924,7 @@
       img.addEventListener('mouseenter', () => { img.src = animUrl; });
       img.addEventListener('mouseleave', () => { img.src = frameUrl; });
     } catch (_) {
+      if (!img.src) img.src = src;   // couldn't fetch/process — fall back to raw image
       img.setAttribute('data-wingspan-gif', 'error');
     }
   }
@@ -1309,6 +1949,349 @@
     });
   }
 
+  // ─── Inline image/GIF links ───────────────────────────────────────────────
+  // When a message contains a bare link to an image or GIF, render the media
+  // inline beneath the link (Discord/Element-style embed).
+
+  const LINK_IMAGE_EXT = /\.(gif|png|jpe?g|webp|avif|apng|bmp)$/i;
+
+  function isRenderableImageLink(a) {
+    // Skip Matrix mentions and in-app links — only embed external media URLs.
+    if (a.dataset.mentionId) return false;
+    if (a.closest('._1pb2z300')) return false;   // link inside Cinny's own preview card
+    let url;
+    try { url = new URL(a.href, location.href); } catch (_) { return false; }
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
+    if (url.hostname === 'matrix.to') return false;
+    return LINK_IMAGE_EXT.test(url.pathname);
+  }
+
+  function renderLinkImages() {
+    const anchors = document.querySelectorAll(
+      '[data-message-item] a[href]:not([data-wingspan-link-img]):not(.wingspan-link-media)'
+    );
+    for (const a of anchors) {
+      a.setAttribute('data-wingspan-link-img', isRenderableImageLink(a) ? '1' : 'skip');
+      if (a.getAttribute('data-wingspan-link-img') === '1') embedImageLink(a);
+    }
+  }
+
+  // Renders one image/GIF link as an inline media embed and hides the raw URL.
+  // Used by renderLinkImages, and by the preview path when inline rendering is
+  // off (so trusted image links still render — as the "preview").
+  function embedImageLink(a) {
+    if (a.dataset.wingspanLinkImg !== '1') a.setAttribute('data-wingspan-link-img', '1');
+    const cell = a.closest('.prxiv41d') || a.closest('[data-message-item]');
+    if (!cell) return;
+
+    const link = document.createElement('a');
+    link.className = 'wingspan-link-media';
+    link.href = a.href;
+    link.target = '_blank';
+    link.rel = 'noreferrer noopener';
+
+    const img = document.createElement('img');
+    img.className = 'wingspan-link-media-img';
+    img.loading = 'lazy';
+    img.alt = '';
+    // If the media fails to load it's probably not really an image — drop the
+    // embed and restore the original link text.
+    img.addEventListener('error', () => { link.remove(); a.style.display = ''; });
+
+    link.appendChild(img);
+    cell.appendChild(link);
+
+    // Hide the raw URL text now that the media is shown inline.
+    a.style.display = 'none';
+
+    // GIFs honor the "pause until hovered" setting — route them through the
+    // same first-frame/hover pipeline as native chat GIFs. Everything else
+    // just loads directly.
+    const isGif = /\.gif$/i.test(new URL(a.href, location.href).pathname);
+    if (CFG.PAUSE_CHAT_GIFS && isGif) {
+      img.setAttribute('data-wingspan-gif', 'pending');
+      processChatGif(img, a.href);
+    } else {
+      img.src = a.href;
+    }
+  }
+
+  // ─── Link previews (Open Graph embeds) ────────────────────────────────────
+  // Discord-style website previews. The background worker fetches the target
+  // page and returns its meta tags; we render a card beneath the link. Gated by
+  // a 3-way mode: 'all' (any site), 'trusted' (whitelist only, with an inline
+  // "Allow" button on blocked links), or 'off'.
+
+  function isPreviewableLink(a) {
+    if (a.dataset.mentionId) return false;
+    if (a.classList.contains('wingspan-link-media') ||
+        a.classList.contains('wingspan-embed')) return false;
+    if (a.closest('._1pb2z300')) return false;   // link inside Cinny's own preview card
+    let url;
+    try { url = new URL(a.href, location.href); } catch (_) { return false; }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+    if (!url.hostname || url.hostname === 'matrix.to') return false;
+    // When inline rendering is on, image/GIF links render as full media and are
+    // excluded here. When it's off they flow through the preview system, where a
+    // trusted one renders a small thumbnail card (not a full inline image).
+    if (CFG.RENDER_LINK_IMAGES && isRenderableImageLink(a)) return false;
+    return true;
+  }
+
+  function linkHost(a) {
+    try { return new URL(a.href, location.href).hostname.replace(/^www\./, ''); }
+    catch (_) { return ''; }
+  }
+
+  function renderLinkPreviews() {
+    const mode = CFG.LINK_PREVIEW_MODE;
+    if (mode === 'off') return;
+    const anchors = document.querySelectorAll(
+      '[data-message-item] a[href]:not([data-wingspan-link-preview]):not(.wingspan-link-media):not(.wingspan-embed)'
+    );
+    for (const a of anchors) {
+      if (!isPreviewableLink(a)) { a.setAttribute('data-wingspan-link-preview', 'skip'); continue; }
+
+      const host = linkHost(a);
+      const trusted = mode === 'all' || hostMatches(host, CFG.LINK_PREVIEW_TRUSTED);
+      if (!trusted) {
+        // Trusted mode + untrusted domain: offer an inline opt-in button.
+        a.setAttribute('data-wingspan-link-preview', 'blocked');
+        addAllowButton(a, host);
+        continue;
+      }
+
+      a.setAttribute('data-wingspan-link-preview', '1');
+      // A trusted image/GIF link (only reached when inline rendering is off) gets
+      // a small thumbnail card; anything else gets a fetched Open Graph card.
+      if (isRenderableImageLink(a)) appendImagePreview(a);
+      else requestPreview(a);
+    }
+  }
+
+  // Builds a compact preview card for a direct image/GIF link (no OG fetch — the
+  // image URL is the thumbnail). Used by the preview path when inline rendering
+  // is off, so trusted image links show a small card instead of a full image.
+  function appendImagePreview(a) {
+    const href = a.href;
+    const cell = a.closest('.prxiv41d') || a.closest('[data-message-item]');
+    if (!cell) return;
+    if ([...cell.querySelectorAll('.wingspan-embed')].some(e => e.getAttribute('data-for') === href)) return;
+
+    let host = '', name = href;
+    try {
+      const u = new URL(href, location.href);
+      host = u.hostname.replace(/^www\./, '');
+      name = decodeURIComponent(u.pathname.split('/').filter(Boolean).pop() || '') || host;
+    } catch (_) {}
+
+    cell.appendChild(buildEmbed({ site: host, title: name, desc: '', image: href, url: href }, href));
+  }
+
+  function requestPreview(a) {
+    const href = a.href;
+    try {
+      chrome.runtime.sendMessage({ type: 'wingspan_og', url: href }, (resp) => {
+        if (chrome.runtime.lastError) return;
+        const og = resp && resp.og;
+        if (!og || (!og.title && !og.image && !og.desc)) return;
+
+        const cell = a.closest('.prxiv41d') || a.closest('[data-message-item]');
+        if (!cell) return;
+        // De-dupe in case the message re-rendered between request and response.
+        const dup = [...cell.querySelectorAll('.wingspan-embed')]
+          .some(e => e.getAttribute('data-for') === href);
+        if (dup) return;
+        cell.appendChild(buildEmbed(og, href));
+      });
+    } catch (_) { /* extension context gone */ }
+  }
+
+  function buildEmbed(og, href) {
+    const card = document.createElement('a');
+    card.className = 'wingspan-embed';
+    card.href = href;
+    card.target = '_blank';
+    card.rel = 'noreferrer noopener';
+    card.setAttribute('data-for', href);
+
+    const body = document.createElement('div');
+    body.className = 'wingspan-embed-body';
+    const add = (cls, text) => {
+      if (!text) return;
+      const el = document.createElement('div');
+      el.className = cls;
+      el.textContent = text;
+      body.appendChild(el);
+    };
+    add('wingspan-embed-site', og.site);
+    add('wingspan-embed-title', og.title);
+    add('wingspan-embed-desc', og.desc);
+    card.appendChild(body);
+
+    if (og.image) {
+      const img = document.createElement('img');
+      img.className = 'wingspan-embed-thumb';
+      img.loading = 'lazy';
+      img.alt = '';
+      img.addEventListener('error', () => img.remove());
+      img.src = og.image;
+      card.appendChild(img);
+    }
+    return card;
+  }
+
+  function addAllowButton(a, host) {
+    if (a.nextElementSibling && a.nextElementSibling.classList.contains('wingspan-embed-allow')) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'wingspan-embed-allow';
+    btn.textContent = 'Preview';
+    btn.title = host ? `Allow link previews from ${host}` : 'Allow link previews';
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      addTrustedDomain(host);
+    });
+    a.insertAdjacentElement('afterend', btn);
+  }
+
+  function addTrustedDomain(host) {
+    if (!host) return;
+    const list = CFG.LINK_PREVIEW_TRUSTED.slice();
+    if (!list.includes(host)) list.push(host);
+    // Persisting fires storage.onChanged → resetLinkPreviews + re-render, which
+    // drops the Allow buttons and renders previews for the now-trusted domain.
+    chrome.storage.local.set({ linkPreviewTrusted: list });
+  }
+
+  // Remove all rendered previews + Allow buttons and clear markers so the next
+  // renderLinkPreviews() re-evaluates every link against the current settings.
+  // Also restore any of Cinny's native previews we hid.
+  function resetLinkPreviews() {
+    document.querySelectorAll('.wingspan-embed').forEach(el => el.remove());
+    document.querySelectorAll('.wingspan-embed-allow').forEach(el => el.remove());
+    document.querySelectorAll('[data-wingspan-link-preview]').forEach(el =>
+      el.removeAttribute('data-wingspan-link-preview'));
+    document.querySelectorAll('[data-wingspan-native-hidden]').forEach(el => {
+      el.style.display = '';
+      el.removeAttribute('data-wingspan-native-hidden');
+    });
+    document.querySelectorAll('._1pb2z300[data-wingspan-native-checked]').forEach(el =>
+      el.removeAttribute('data-wingspan-native-checked'));
+  }
+
+  // When Wingspan already renders a URL — either an OG embed (.wingspan-embed)
+  // or an inline image/GIF (.wingspan-link-media) — hide Cinny's built-in
+  // preview card (._1pb2z300) for that same URL so it doesn't render twice.
+  function syncNativePreviews() {
+    const natives = document.querySelectorAll(
+      '[data-message-item] ._1pb2z300:not([data-wingspan-native-checked])'
+    );
+    for (const card of natives) {
+      const cell = card.closest('.prxiv41d') || card.closest('[data-message-item]');
+      const link = card.querySelector('a[href]');
+      if (!cell || !link) continue;
+      const href = link.href;
+
+      const mine = [...cell.querySelectorAll('.wingspan-embed, .wingspan-link-media')]
+        .some(e => (e.getAttribute('data-for') || e.href) === href);
+      if (!mine) continue;   // leave it (re-checked next scan in case ours renders later)
+
+      card.setAttribute('data-wingspan-native-checked', '1');   // process once, no loop
+      const wrap = card.closest('._4yxtfd2');
+      const target = (wrap && wrap.parentElement) || wrap || card;
+      target.style.display = 'none';
+      target.setAttribute('data-wingspan-native-hidden', '1');
+    }
+  }
+
+  // ─── File attachment cards (Discord-style) ────────────────────────────────
+  // Rebuild Cinny's file message as: [type icon] [filename + size] [download].
+  // Cinny's own download button still does the work — we hide it and proxy
+  // clicks to it, so download behaviour is untouched.
+
+  function enhanceFileCards() {
+    const cards = document.querySelectorAll(
+      '[data-message-item] ._1f6snux0:not([data-wingspan-file])'
+    );
+    for (const card of cards) {
+      const header = card.querySelector('._1f6snux2');
+      if (!header) continue;                 // image/GIF embed, not a file
+      const dlBtn = card.querySelector('.epr39zd');
+      card.setAttribute('data-wingspan-file', dlBtn ? '1' : 'skip');
+      if (!dlBtn) continue;                   // unknown layout — leave default
+
+      const nameEl = [...header.querySelectorAll('p')].find(p => !p.closest('.cpipac5'));
+      const name   = nameEl?.textContent?.trim() || 'file';
+      const type   = header.querySelector('.cpipac5 p')?.textContent?.trim() || '';
+      const dlText = dlBtn.querySelector('p')?.textContent || '';
+      const size   = (dlText.match(/\(([^)]+)\)/) || [])[1] || '';
+
+      const ext   = name.includes('.') ? name.split('.').pop().toUpperCase() : '';
+      const label = ext || type.toUpperCase();
+      const meta  = [label, size].filter(Boolean).join(' · ');
+
+      const row = document.createElement('div');
+      row.className = 'wingspan-file-row';
+      row.innerHTML = `
+        <span class="wingspan-file-ic">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2.75h7L19 8.5v12.75H6V2.75z" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M13 2.75V8.5h5.6" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
+        </span>
+        <div class="wingspan-file-info">
+          <span class="wingspan-file-name"></span>
+          <span class="wingspan-file-meta"></span>
+        </div>
+        <button class="wingspan-file-dl" type="button" title="Download">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 3.5v10.5m0 0l-3.75-3.75M12 14l3.75-3.75" stroke="currentColor"
+                  stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M5 18.5h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </button>`;
+
+      const nameOut = row.querySelector('.wingspan-file-name');
+      const metaOut = row.querySelector('.wingspan-file-meta');
+      nameOut.textContent = name;
+      nameOut.title = name;
+      if (meta) metaOut.textContent = meta;
+      else metaOut.remove();
+
+      const trigger = () => dlBtn.click();
+      row.querySelector('.wingspan-file-dl').addEventListener('click', (e) => { e.preventDefault(); trigger(); });
+      nameOut.addEventListener('click', trigger);
+
+      card.classList.add('wingspan-file-enhanced');
+      card.appendChild(row);
+    }
+  }
+
+  // ─── Mention highlight ────────────────────────────────────────────────────
+  // Tint a message gold (Discord-style) when it mentions the current user, the
+  // room (@room), or everyone (@everyone / @here).
+
+  function highlightMentions() {
+    const me = creds?.userId;
+    if (!me) return;   // don't mark until we know who we are — re-check next scan
+    const msgs = document.querySelectorAll('[data-message-item]:not([data-wingspan-mention-checked])');
+    for (const msg of msgs) {
+      msg.setAttribute('data-wingspan-mention-checked', '1');
+      for (const a of msg.querySelectorAll('a[data-mention-id]')) {
+        const id  = a.getAttribute('data-mention-id') || '';
+        const txt = (a.textContent || '').trim().toLowerCase();
+        // Direct mention matches by user id; @room/@everyone/@here only show up
+        // in the visible text (their mention id is the room/user id, not "@room").
+        if (id === me || txt === '@room' || txt === '@everyone' || txt === '@here') {
+          msg.classList.add('wingspan-mention-me');
+          break;
+        }
+      }
+    }
+  }
+
   // ─── Presence dots ────────────────────────────────────────────────────────
 
   function injectPresenceDots(force = false) {
@@ -1317,15 +2300,18 @@
       const userId = el.getAttribute('data-user-id');
       if (!userId) continue;
 
-      // Skip text-only username buttons (chat messages, etc.) — they have no avatar img.
-      const img = el.querySelector('img');
-      if (!img) continue;
+      // Skip text-only username buttons (chat messages, mentions) — they have
+      // no avatar. Match the avatar inner element (.awo2r00), present for both
+      // image avatars (img._1684mq5c) and letter/icon fallbacks (span._1684mq5d),
+      // so users without a profile picture still get a presence dot.
+      const avatar = el.querySelector('.awo2r00');
+      if (!avatar) continue;
 
       el.setAttribute('data-wingspan-presence', 'pending');
 
-      // Anchor to the img's direct parent (the Avatar component wrapper),
+      // Anchor to the avatar's direct parent (the Avatar component wrapper),
       // not to el itself which may be a wide member-row container.
-      const dotHost = img.parentElement ?? el;
+      const dotHost = avatar.parentElement ?? el;
       dotHost.style.position = 'relative';
       dotHost.style.overflow = 'visible';
 
@@ -1353,11 +2339,11 @@
       const userId = el.getAttribute('data-user-id');
       if (!userId) continue;
 
-      const img = el.querySelector('img');
-      if (!img) continue; // skip non-avatar elements (inline username mentions, etc.)
+      const avatar = el.querySelector('.awo2r00');
+      if (!avatar) continue; // skip non-avatar elements (inline username mentions, etc.)
 
       // Find the name area: the first direct child that isn't the avatar wrapper and has text
-      const avatarWrapper = img.parentElement;
+      const avatarWrapper = avatar.parentElement;
       let nameArea = null;
       for (const child of el.children) {
         if (child === avatarWrapper) continue;
