@@ -904,11 +904,11 @@
     btn.setAttribute('title', 'Insert GIF (Wingspan)');
     btn.className = 'wingspan-gif-btn';
     btn.innerHTML = `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20">
-        <rect x="2" y="5" width="20" height="14" rx="3"
-              stroke="currentColor" stroke-width="1.5" fill="none"/>
-        <text x="12" y="15.5" font-family="sans-serif" font-weight="800"
-              font-size="8" fill="currentColor" text-anchor="middle">GIF</text>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+        <rect x="3" y="3" width="18" height="18" rx="4"
+              stroke="currentColor" stroke-width="1.6" fill="none"/>
+        <text x="12" y="15.4" font-family="sans-serif" font-weight="800"
+              font-size="8.5" fill="currentColor" text-anchor="middle">GIF</text>
       </svg>`;
 
     btn.addEventListener('click', (e) => {
