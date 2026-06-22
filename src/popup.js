@@ -10,6 +10,7 @@ const DEFAULT_DOMAINS = [
 const DEFAULTS = {
   klipyKey:        '',
   pauseChatGifs:   true,
+  renderLinkImages: true,
   showPresence:    true,
   userBanners:     true,
   roomNicknames:   true,
@@ -35,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
   chrome.storage.local.get(DEFAULTS, (s) => {
     $('klipyKey').value             = s.klipyKey || '';
     $('pauseChatGifs').checked      = s.pauseChatGifs;
+    $('renderLinkImages').checked   = s.renderLinkImages;
     $('showPresence').checked       = s.showPresence;
     $('userBanners').checked        = s.userBanners;
     $('roomNicknames').checked      = s.roomNicknames;
@@ -55,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const settings = {
       klipyKey:        $('klipyKey').value.trim(),
       pauseChatGifs:   $('pauseChatGifs').checked,
+      renderLinkImages: $('renderLinkImages').checked,
       showPresence:    $('showPresence').checked,
       userBanners:     $('userBanners').checked,
       roomNicknames:   $('roomNicknames').checked,

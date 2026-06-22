@@ -19,6 +19,7 @@
     DEBOUNCE_MS:      250,
     FAV_KEY:          'wingspan_gif_favs',
     PAUSE_CHAT_GIFS:  true,
+    RENDER_LINK_IMAGES: true,
     SHOW_PRESENCE:    true,
     USER_BANNERS:     true,
     ROOM_NICKNAMES:   true,
@@ -96,6 +97,7 @@
     chrome.storage.local.get({
       klipyKey:        CFG.KLIPY_KEY,
       pauseChatGifs:   CFG.PAUSE_CHAT_GIFS,
+      renderLinkImages: CFG.RENDER_LINK_IMAGES,
       showPresence:    CFG.SHOW_PRESENCE,
       userBanners:     CFG.USER_BANNERS,
       roomNicknames:   CFG.ROOM_NICKNAMES,
@@ -108,6 +110,7 @@
     }, (s) => {
       if (s.klipyKey)       CFG.KLIPY_KEY       = s.klipyKey;
       CFG.PAUSE_CHAT_GIFS   = s.pauseChatGifs;
+      CFG.RENDER_LINK_IMAGES = s.renderLinkImages;
       CFG.SHOW_PRESENCE     = s.showPresence;
       CFG.USER_BANNERS      = s.userBanners;
       CFG.ROOM_NICKNAMES    = s.roomNicknames;
@@ -130,6 +133,18 @@
       if (changes.klipyKey)      CFG.KLIPY_KEY      = changes.klipyKey.newValue;
       if (changes.gifLimit)      CFG.GIF_LIMIT       = changes.gifLimit.newValue;
       if (changes.pauseChatGifs) CFG.PAUSE_CHAT_GIFS = changes.pauseChatGifs.newValue;
+      if (changes.renderLinkImages) {
+        CFG.RENDER_LINK_IMAGES = changes.renderLinkImages.newValue;
+        if (!CFG.RENDER_LINK_IMAGES) {
+          document.querySelectorAll('.wingspan-link-media').forEach(el => el.remove());
+          document.querySelectorAll('[data-wingspan-link-img]').forEach(el => {
+            el.style.display = '';   // restore the raw link text we hid
+            el.removeAttribute('data-wingspan-link-img');
+          });
+        } else {
+          renderLinkImages();
+        }
+      }
       if (changes.showPresence) {
         CFG.SHOW_PRESENCE = changes.showPresence.newValue;
         if (!CFG.SHOW_PRESENCE) {
@@ -315,6 +330,9 @@
     if (CFG.SHOW_PRESENCE)    injectStatusMessages();
     if (CFG.SHOW_PRESENCE)    injectDmListPresence();
     if (CFG.PAUSE_CHAT_GIFS)  pauseChatGifs();
+    if (CFG.RENDER_LINK_IMAGES) renderLinkImages();
+    enhanceFileCards();
+    highlightMentions();
     injectImageViewerZoom();
     if (CFG.USER_BANNERS)     injectProfileBanners();
     if (CFG.ROOM_NICKNAMES)   injectAliasMenuButton();
@@ -1860,6 +1878,7 @@
       const blob = await res.blob();
 
       if (!blob.type.includes('image/gif')) {
+        if (!img.src) img.src = src;   // injected link media starts srcless — show it
         img.setAttribute('data-wingspan-gif', 'skip');
         return;
       }
@@ -1874,6 +1893,7 @@
       img.addEventListener('mouseenter', () => { img.src = animUrl; });
       img.addEventListener('mouseleave', () => { img.src = frameUrl; });
     } catch (_) {
+      if (!img.src) img.src = src;   // couldn't fetch/process — fall back to raw image
       img.setAttribute('data-wingspan-gif', 'error');
     }
   }
@@ -1896,6 +1916,153 @@
       tmp.onerror = reject;
       tmp.src = blobUrl;
     });
+  }
+
+  // ─── Inline image/GIF links ───────────────────────────────────────────────
+  // When a message contains a bare link to an image or GIF, render the media
+  // inline beneath the link (Discord/Element-style embed).
+
+  const LINK_IMAGE_EXT = /\.(gif|png|jpe?g|webp|avif|apng|bmp)$/i;
+
+  function isRenderableImageLink(a) {
+    // Skip Matrix mentions and in-app links — only embed external media URLs.
+    if (a.dataset.mentionId) return false;
+    let url;
+    try { url = new URL(a.href, location.href); } catch (_) { return false; }
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
+    if (url.hostname === 'matrix.to') return false;
+    return LINK_IMAGE_EXT.test(url.pathname);
+  }
+
+  function renderLinkImages() {
+    const anchors = document.querySelectorAll(
+      '[data-message-item] a[href]:not([data-wingspan-link-img]):not(.wingspan-link-media)'
+    );
+    for (const a of anchors) {
+      a.setAttribute('data-wingspan-link-img', isRenderableImageLink(a) ? '1' : 'skip');
+      if (a.getAttribute('data-wingspan-link-img') !== '1') continue;
+
+      // Anchor the embed to the message's content cell, after the text.
+      const cell = a.closest('.prxiv41d') || a.closest('[data-message-item]');
+      if (!cell) continue;
+
+      const link = document.createElement('a');
+      link.className = 'wingspan-link-media';
+      link.href = a.href;
+      link.target = '_blank';
+      link.rel = 'noreferrer noopener';
+
+      const img = document.createElement('img');
+      img.className = 'wingspan-link-media-img';
+      img.loading = 'lazy';
+      img.alt = '';
+      // If the media fails to load it's probably not really an image — drop the
+      // embed and restore the original link text.
+      img.addEventListener('error', () => { link.remove(); a.style.display = ''; });
+
+      link.appendChild(img);
+      cell.appendChild(link);
+
+      // Hide the raw URL text now that the media is shown inline.
+      a.style.display = 'none';
+
+      // GIFs honor the "pause until hovered" setting — route them through the
+      // same first-frame/hover pipeline as native chat GIFs. Everything else
+      // just loads directly.
+      const isGif = /\.gif$/i.test(new URL(a.href, location.href).pathname);
+      if (CFG.PAUSE_CHAT_GIFS && isGif) {
+        img.setAttribute('data-wingspan-gif', 'pending');
+        processChatGif(img, a.href);
+      } else {
+        img.src = a.href;
+      }
+    }
+  }
+
+  // ─── File attachment cards (Discord-style) ────────────────────────────────
+  // Rebuild Cinny's file message as: [type icon] [filename + size] [download].
+  // Cinny's own download button still does the work — we hide it and proxy
+  // clicks to it, so download behaviour is untouched.
+
+  function enhanceFileCards() {
+    const cards = document.querySelectorAll(
+      '[data-message-item] ._1f6snux0:not([data-wingspan-file])'
+    );
+    for (const card of cards) {
+      const header = card.querySelector('._1f6snux2');
+      if (!header) continue;                 // image/GIF embed, not a file
+      const dlBtn = card.querySelector('.epr39zd');
+      card.setAttribute('data-wingspan-file', dlBtn ? '1' : 'skip');
+      if (!dlBtn) continue;                   // unknown layout — leave default
+
+      const nameEl = [...header.querySelectorAll('p')].find(p => !p.closest('.cpipac5'));
+      const name   = nameEl?.textContent?.trim() || 'file';
+      const type   = header.querySelector('.cpipac5 p')?.textContent?.trim() || '';
+      const dlText = dlBtn.querySelector('p')?.textContent || '';
+      const size   = (dlText.match(/\(([^)]+)\)/) || [])[1] || '';
+
+      const ext   = name.includes('.') ? name.split('.').pop().toUpperCase() : '';
+      const label = ext || type.toUpperCase();
+      const meta  = [label, size].filter(Boolean).join(' · ');
+
+      const row = document.createElement('div');
+      row.className = 'wingspan-file-row';
+      row.innerHTML = `
+        <span class="wingspan-file-ic">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2.75h7L19 8.5v12.75H6V2.75z" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M13 2.75V8.5h5.6" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
+        </span>
+        <div class="wingspan-file-info">
+          <span class="wingspan-file-name"></span>
+          <span class="wingspan-file-meta"></span>
+        </div>
+        <button class="wingspan-file-dl" type="button" title="Download">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 3.5v10.5m0 0l-3.75-3.75M12 14l3.75-3.75" stroke="currentColor"
+                  stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M5 18.5h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </button>`;
+
+      const nameOut = row.querySelector('.wingspan-file-name');
+      const metaOut = row.querySelector('.wingspan-file-meta');
+      nameOut.textContent = name;
+      nameOut.title = name;
+      if (meta) metaOut.textContent = meta;
+      else metaOut.remove();
+
+      const trigger = () => dlBtn.click();
+      row.querySelector('.wingspan-file-dl').addEventListener('click', (e) => { e.preventDefault(); trigger(); });
+      nameOut.addEventListener('click', trigger);
+
+      card.classList.add('wingspan-file-enhanced');
+      card.appendChild(row);
+    }
+  }
+
+  // ─── Mention highlight ────────────────────────────────────────────────────
+  // Tint a message gold (Discord-style) when it mentions the current user, the
+  // room (@room), or everyone (@everyone / @here).
+
+  function highlightMentions() {
+    const me = creds?.userId;
+    if (!me) return;   // don't mark until we know who we are — re-check next scan
+    const msgs = document.querySelectorAll('[data-message-item]:not([data-wingspan-mention-checked])');
+    for (const msg of msgs) {
+      msg.setAttribute('data-wingspan-mention-checked', '1');
+      for (const a of msg.querySelectorAll('a[data-mention-id]')) {
+        const id  = a.getAttribute('data-mention-id') || '';
+        const txt = (a.textContent || '').trim().toLowerCase();
+        // Direct mention matches by user id; @room/@everyone/@here only show up
+        // in the visible text (their mention id is the room/user id, not "@room").
+        if (id === me || txt === '@room' || txt === '@everyone' || txt === '@here') {
+          msg.classList.add('wingspan-mention-me');
+          break;
+        }
+      }
+    }
   }
 
   // ─── Presence dots ────────────────────────────────────────────────────────
