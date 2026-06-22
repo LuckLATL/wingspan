@@ -1906,15 +1906,18 @@
       const userId = el.getAttribute('data-user-id');
       if (!userId) continue;
 
-      // Skip text-only username buttons (chat messages, etc.) — they have no avatar img.
-      const img = el.querySelector('img');
-      if (!img) continue;
+      // Skip text-only username buttons (chat messages, mentions) — they have
+      // no avatar. Match the avatar inner element (.awo2r00), present for both
+      // image avatars (img._1684mq5c) and letter/icon fallbacks (span._1684mq5d),
+      // so users without a profile picture still get a presence dot.
+      const avatar = el.querySelector('.awo2r00');
+      if (!avatar) continue;
 
       el.setAttribute('data-wingspan-presence', 'pending');
 
-      // Anchor to the img's direct parent (the Avatar component wrapper),
+      // Anchor to the avatar's direct parent (the Avatar component wrapper),
       // not to el itself which may be a wide member-row container.
-      const dotHost = img.parentElement ?? el;
+      const dotHost = avatar.parentElement ?? el;
       dotHost.style.position = 'relative';
       dotHost.style.overflow = 'visible';
 
@@ -1942,11 +1945,11 @@
       const userId = el.getAttribute('data-user-id');
       if (!userId) continue;
 
-      const img = el.querySelector('img');
-      if (!img) continue; // skip non-avatar elements (inline username mentions, etc.)
+      const avatar = el.querySelector('.awo2r00');
+      if (!avatar) continue; // skip non-avatar elements (inline username mentions, etc.)
 
       // Find the name area: the first direct child that isn't the avatar wrapper and has text
-      const avatarWrapper = img.parentElement;
+      const avatarWrapper = avatar.parentElement;
       let nameArea = null;
       for (const child of el.children) {
         if (child === avatarWrapper) continue;
