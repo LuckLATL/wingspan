@@ -20,6 +20,8 @@
     FAV_KEY:          'wingspan_gif_favs',
     PAUSE_CHAT_GIFS:  true,
     RENDER_LINK_IMAGES: true,
+    LINK_PREVIEW_MODE: 'trusted',   // 'all' | 'trusted' | 'off'
+    LINK_PREVIEW_TRUSTED: [],       // whitelist of domains for 'trusted' mode
     SHOW_PRESENCE:    true,
     USER_BANNERS:     true,
     ROOM_NICKNAMES:   true,
@@ -55,6 +57,18 @@
       if (s && !out.includes(s)) out.push(s);
     }
     return out.length ? out : DEFAULT_DOMAINS.slice();
+  }
+
+  // Like normalizeDomains but allows an empty result (used for the link-preview
+  // whitelist, where "no trusted domains" is a valid state).
+  function cleanDomainList(list) {
+    if (!Array.isArray(list)) return [];
+    const out = [];
+    for (const raw of list) {
+      const s = String(raw || '').trim().toLowerCase();
+      if (s && !out.includes(s)) out.push(s);
+    }
+    return out;
   }
 
   let bootedInner = false;
@@ -98,6 +112,8 @@
       klipyKey:        CFG.KLIPY_KEY,
       pauseChatGifs:   CFG.PAUSE_CHAT_GIFS,
       renderLinkImages: CFG.RENDER_LINK_IMAGES,
+      linkPreviewMode:    CFG.LINK_PREVIEW_MODE,
+      linkPreviewTrusted: CFG.LINK_PREVIEW_TRUSTED,
       showPresence:    CFG.SHOW_PRESENCE,
       userBanners:     CFG.USER_BANNERS,
       roomNicknames:   CFG.ROOM_NICKNAMES,
@@ -111,6 +127,8 @@
       if (s.klipyKey)       CFG.KLIPY_KEY       = s.klipyKey;
       CFG.PAUSE_CHAT_GIFS   = s.pauseChatGifs;
       CFG.RENDER_LINK_IMAGES = s.renderLinkImages;
+      CFG.LINK_PREVIEW_MODE    = s.linkPreviewMode || 'trusted';
+      CFG.LINK_PREVIEW_TRUSTED = cleanDomainList(s.linkPreviewTrusted);
       CFG.SHOW_PRESENCE     = s.showPresence;
       CFG.USER_BANNERS      = s.userBanners;
       CFG.ROOM_NICKNAMES    = s.roomNicknames;
@@ -135,15 +153,26 @@
       if (changes.pauseChatGifs) CFG.PAUSE_CHAT_GIFS = changes.pauseChatGifs.newValue;
       if (changes.renderLinkImages) {
         CFG.RENDER_LINK_IMAGES = changes.renderLinkImages.newValue;
-        if (!CFG.RENDER_LINK_IMAGES) {
-          document.querySelectorAll('.wingspan-link-media').forEach(el => el.remove());
-          document.querySelectorAll('[data-wingspan-link-img]').forEach(el => {
-            el.style.display = '';   // restore the raw link text we hid
-            el.removeAttribute('data-wingspan-link-img');
-          });
-        } else {
-          renderLinkImages();
-        }
+        // Image links move between the inline-media path and the preview path,
+        // so tear everything down and re-evaluate under the new setting.
+        document.querySelectorAll('.wingspan-link-media').forEach(el => el.remove());
+        document.querySelectorAll('[data-wingspan-link-img]').forEach(el => {
+          el.style.display = '';   // restore the raw link text we hid
+          el.removeAttribute('data-wingspan-link-img');
+        });
+        resetLinkPreviews();
+        if (CFG.RENDER_LINK_IMAGES) renderLinkImages();
+        if (CFG.LINK_PREVIEW_MODE !== 'off') renderLinkPreviews();
+      }
+      if (changes.linkPreviewMode) {
+        CFG.LINK_PREVIEW_MODE = changes.linkPreviewMode.newValue || 'off';
+        resetLinkPreviews();
+        if (CFG.LINK_PREVIEW_MODE !== 'off') renderLinkPreviews();
+      }
+      if (changes.linkPreviewTrusted) {
+        CFG.LINK_PREVIEW_TRUSTED = cleanDomainList(changes.linkPreviewTrusted.newValue);
+        resetLinkPreviews();
+        if (CFG.LINK_PREVIEW_MODE !== 'off') renderLinkPreviews();
       }
       if (changes.showPresence) {
         CFG.SHOW_PRESENCE = changes.showPresence.newValue;
@@ -331,6 +360,8 @@
     if (CFG.SHOW_PRESENCE)    injectDmListPresence();
     if (CFG.PAUSE_CHAT_GIFS)  pauseChatGifs();
     if (CFG.RENDER_LINK_IMAGES) renderLinkImages();
+    if (CFG.LINK_PREVIEW_MODE !== 'off') renderLinkPreviews();
+    syncNativePreviews();
     enhanceFileCards();
     highlightMentions();
     injectImageViewerZoom();
@@ -1927,6 +1958,7 @@
   function isRenderableImageLink(a) {
     // Skip Matrix mentions and in-app links — only embed external media URLs.
     if (a.dataset.mentionId) return false;
+    if (a.closest('._1pb2z300')) return false;   // link inside Cinny's own preview card
     let url;
     try { url = new URL(a.href, location.href); } catch (_) { return false; }
     if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
@@ -1940,42 +1972,237 @@
     );
     for (const a of anchors) {
       a.setAttribute('data-wingspan-link-img', isRenderableImageLink(a) ? '1' : 'skip');
-      if (a.getAttribute('data-wingspan-link-img') !== '1') continue;
+      if (a.getAttribute('data-wingspan-link-img') === '1') embedImageLink(a);
+    }
+  }
 
-      // Anchor the embed to the message's content cell, after the text.
-      const cell = a.closest('.prxiv41d') || a.closest('[data-message-item]');
-      if (!cell) continue;
+  // Renders one image/GIF link as an inline media embed and hides the raw URL.
+  // Used by renderLinkImages, and by the preview path when inline rendering is
+  // off (so trusted image links still render — as the "preview").
+  function embedImageLink(a) {
+    if (a.dataset.wingspanLinkImg !== '1') a.setAttribute('data-wingspan-link-img', '1');
+    const cell = a.closest('.prxiv41d') || a.closest('[data-message-item]');
+    if (!cell) return;
 
-      const link = document.createElement('a');
-      link.className = 'wingspan-link-media';
-      link.href = a.href;
-      link.target = '_blank';
-      link.rel = 'noreferrer noopener';
+    const link = document.createElement('a');
+    link.className = 'wingspan-link-media';
+    link.href = a.href;
+    link.target = '_blank';
+    link.rel = 'noreferrer noopener';
 
+    const img = document.createElement('img');
+    img.className = 'wingspan-link-media-img';
+    img.loading = 'lazy';
+    img.alt = '';
+    // If the media fails to load it's probably not really an image — drop the
+    // embed and restore the original link text.
+    img.addEventListener('error', () => { link.remove(); a.style.display = ''; });
+
+    link.appendChild(img);
+    cell.appendChild(link);
+
+    // Hide the raw URL text now that the media is shown inline.
+    a.style.display = 'none';
+
+    // GIFs honor the "pause until hovered" setting — route them through the
+    // same first-frame/hover pipeline as native chat GIFs. Everything else
+    // just loads directly.
+    const isGif = /\.gif$/i.test(new URL(a.href, location.href).pathname);
+    if (CFG.PAUSE_CHAT_GIFS && isGif) {
+      img.setAttribute('data-wingspan-gif', 'pending');
+      processChatGif(img, a.href);
+    } else {
+      img.src = a.href;
+    }
+  }
+
+  // ─── Link previews (Open Graph embeds) ────────────────────────────────────
+  // Discord-style website previews. The background worker fetches the target
+  // page and returns its meta tags; we render a card beneath the link. Gated by
+  // a 3-way mode: 'all' (any site), 'trusted' (whitelist only, with an inline
+  // "Allow" button on blocked links), or 'off'.
+
+  function isPreviewableLink(a) {
+    if (a.dataset.mentionId) return false;
+    if (a.classList.contains('wingspan-link-media') ||
+        a.classList.contains('wingspan-embed')) return false;
+    if (a.closest('._1pb2z300')) return false;   // link inside Cinny's own preview card
+    let url;
+    try { url = new URL(a.href, location.href); } catch (_) { return false; }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+    if (!url.hostname || url.hostname === 'matrix.to') return false;
+    // When inline rendering is on, image/GIF links render as full media and are
+    // excluded here. When it's off they flow through the preview system, where a
+    // trusted one renders a small thumbnail card (not a full inline image).
+    if (CFG.RENDER_LINK_IMAGES && isRenderableImageLink(a)) return false;
+    return true;
+  }
+
+  function linkHost(a) {
+    try { return new URL(a.href, location.href).hostname.replace(/^www\./, ''); }
+    catch (_) { return ''; }
+  }
+
+  function renderLinkPreviews() {
+    const mode = CFG.LINK_PREVIEW_MODE;
+    if (mode === 'off') return;
+    const anchors = document.querySelectorAll(
+      '[data-message-item] a[href]:not([data-wingspan-link-preview]):not(.wingspan-link-media):not(.wingspan-embed)'
+    );
+    for (const a of anchors) {
+      if (!isPreviewableLink(a)) { a.setAttribute('data-wingspan-link-preview', 'skip'); continue; }
+
+      const host = linkHost(a);
+      const trusted = mode === 'all' || hostMatches(host, CFG.LINK_PREVIEW_TRUSTED);
+      if (!trusted) {
+        // Trusted mode + untrusted domain: offer an inline opt-in button.
+        a.setAttribute('data-wingspan-link-preview', 'blocked');
+        addAllowButton(a, host);
+        continue;
+      }
+
+      a.setAttribute('data-wingspan-link-preview', '1');
+      // A trusted image/GIF link (only reached when inline rendering is off) gets
+      // a small thumbnail card; anything else gets a fetched Open Graph card.
+      if (isRenderableImageLink(a)) appendImagePreview(a);
+      else requestPreview(a);
+    }
+  }
+
+  // Builds a compact preview card for a direct image/GIF link (no OG fetch — the
+  // image URL is the thumbnail). Used by the preview path when inline rendering
+  // is off, so trusted image links show a small card instead of a full image.
+  function appendImagePreview(a) {
+    const href = a.href;
+    const cell = a.closest('.prxiv41d') || a.closest('[data-message-item]');
+    if (!cell) return;
+    if ([...cell.querySelectorAll('.wingspan-embed')].some(e => e.getAttribute('data-for') === href)) return;
+
+    let host = '', name = href;
+    try {
+      const u = new URL(href, location.href);
+      host = u.hostname.replace(/^www\./, '');
+      name = decodeURIComponent(u.pathname.split('/').filter(Boolean).pop() || '') || host;
+    } catch (_) {}
+
+    cell.appendChild(buildEmbed({ site: host, title: name, desc: '', image: href, url: href }, href));
+  }
+
+  function requestPreview(a) {
+    const href = a.href;
+    try {
+      chrome.runtime.sendMessage({ type: 'wingspan_og', url: href }, (resp) => {
+        if (chrome.runtime.lastError) return;
+        const og = resp && resp.og;
+        if (!og || (!og.title && !og.image && !og.desc)) return;
+
+        const cell = a.closest('.prxiv41d') || a.closest('[data-message-item]');
+        if (!cell) return;
+        // De-dupe in case the message re-rendered between request and response.
+        const dup = [...cell.querySelectorAll('.wingspan-embed')]
+          .some(e => e.getAttribute('data-for') === href);
+        if (dup) return;
+        cell.appendChild(buildEmbed(og, href));
+      });
+    } catch (_) { /* extension context gone */ }
+  }
+
+  function buildEmbed(og, href) {
+    const card = document.createElement('a');
+    card.className = 'wingspan-embed';
+    card.href = href;
+    card.target = '_blank';
+    card.rel = 'noreferrer noopener';
+    card.setAttribute('data-for', href);
+
+    const body = document.createElement('div');
+    body.className = 'wingspan-embed-body';
+    const add = (cls, text) => {
+      if (!text) return;
+      const el = document.createElement('div');
+      el.className = cls;
+      el.textContent = text;
+      body.appendChild(el);
+    };
+    add('wingspan-embed-site', og.site);
+    add('wingspan-embed-title', og.title);
+    add('wingspan-embed-desc', og.desc);
+    card.appendChild(body);
+
+    if (og.image) {
       const img = document.createElement('img');
-      img.className = 'wingspan-link-media-img';
+      img.className = 'wingspan-embed-thumb';
       img.loading = 'lazy';
       img.alt = '';
-      // If the media fails to load it's probably not really an image — drop the
-      // embed and restore the original link text.
-      img.addEventListener('error', () => { link.remove(); a.style.display = ''; });
+      img.addEventListener('error', () => img.remove());
+      img.src = og.image;
+      card.appendChild(img);
+    }
+    return card;
+  }
 
-      link.appendChild(img);
-      cell.appendChild(link);
+  function addAllowButton(a, host) {
+    if (a.nextElementSibling && a.nextElementSibling.classList.contains('wingspan-embed-allow')) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'wingspan-embed-allow';
+    btn.textContent = 'Preview';
+    btn.title = host ? `Allow link previews from ${host}` : 'Allow link previews';
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      addTrustedDomain(host);
+    });
+    a.insertAdjacentElement('afterend', btn);
+  }
 
-      // Hide the raw URL text now that the media is shown inline.
-      a.style.display = 'none';
+  function addTrustedDomain(host) {
+    if (!host) return;
+    const list = CFG.LINK_PREVIEW_TRUSTED.slice();
+    if (!list.includes(host)) list.push(host);
+    // Persisting fires storage.onChanged → resetLinkPreviews + re-render, which
+    // drops the Allow buttons and renders previews for the now-trusted domain.
+    chrome.storage.local.set({ linkPreviewTrusted: list });
+  }
 
-      // GIFs honor the "pause until hovered" setting — route them through the
-      // same first-frame/hover pipeline as native chat GIFs. Everything else
-      // just loads directly.
-      const isGif = /\.gif$/i.test(new URL(a.href, location.href).pathname);
-      if (CFG.PAUSE_CHAT_GIFS && isGif) {
-        img.setAttribute('data-wingspan-gif', 'pending');
-        processChatGif(img, a.href);
-      } else {
-        img.src = a.href;
-      }
+  // Remove all rendered previews + Allow buttons and clear markers so the next
+  // renderLinkPreviews() re-evaluates every link against the current settings.
+  // Also restore any of Cinny's native previews we hid.
+  function resetLinkPreviews() {
+    document.querySelectorAll('.wingspan-embed').forEach(el => el.remove());
+    document.querySelectorAll('.wingspan-embed-allow').forEach(el => el.remove());
+    document.querySelectorAll('[data-wingspan-link-preview]').forEach(el =>
+      el.removeAttribute('data-wingspan-link-preview'));
+    document.querySelectorAll('[data-wingspan-native-hidden]').forEach(el => {
+      el.style.display = '';
+      el.removeAttribute('data-wingspan-native-hidden');
+    });
+    document.querySelectorAll('._1pb2z300[data-wingspan-native-checked]').forEach(el =>
+      el.removeAttribute('data-wingspan-native-checked'));
+  }
+
+  // When Wingspan already renders a URL — either an OG embed (.wingspan-embed)
+  // or an inline image/GIF (.wingspan-link-media) — hide Cinny's built-in
+  // preview card (._1pb2z300) for that same URL so it doesn't render twice.
+  function syncNativePreviews() {
+    const natives = document.querySelectorAll(
+      '[data-message-item] ._1pb2z300:not([data-wingspan-native-checked])'
+    );
+    for (const card of natives) {
+      const cell = card.closest('.prxiv41d') || card.closest('[data-message-item]');
+      const link = card.querySelector('a[href]');
+      if (!cell || !link) continue;
+      const href = link.href;
+
+      const mine = [...cell.querySelectorAll('.wingspan-embed, .wingspan-link-media')]
+        .some(e => (e.getAttribute('data-for') || e.href) === href);
+      if (!mine) continue;   // leave it (re-checked next scan in case ours renders later)
+
+      card.setAttribute('data-wingspan-native-checked', '1');   // process once, no loop
+      const wrap = card.closest('._4yxtfd2');
+      const target = (wrap && wrap.parentElement) || wrap || card;
+      target.style.display = 'none';
+      target.setAttribute('data-wingspan-native-hidden', '1');
     }
   }
 

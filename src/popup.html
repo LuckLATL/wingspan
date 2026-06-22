@@ -106,6 +106,26 @@
   <div class="divider"></div>
 
   <div class="section">
+    <div class="section-label">Link previews</div>
+    <select id="linkPreviewMode" class="input">
+      <option value="off">Off — never render previews</option>
+      <option value="trusted">Trusted sites only (whitelist)</option>
+      <option value="all">All sites (dangerous)</option>
+    </select>
+    <div class="hint">
+      “Trusted” shows a <b>Preview</b> button on links from sites not listed
+      below — clicking it trusts that domain. “All” fetches every posted link,
+      which reveals your IP to any linked site.
+    </div>
+    <textarea id="linkPreviewTrusted" class="input input-multiline"
+              spellcheck="false" autocomplete="off"
+              placeholder="github.com&#10;youtube.com&#10;*.wikipedia.org"></textarea>
+    <div class="hint">Trusted domains, one per line. <code>*.example.com</code> matches subdomains.</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="section">
     <div class="section-label">Active on Domains</div>
     <textarea id="domains" class="input input-multiline"
               spellcheck="false" autocomplete="off"

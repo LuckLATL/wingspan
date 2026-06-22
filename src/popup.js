@@ -11,6 +11,8 @@ const DEFAULTS = {
   klipyKey:        '',
   pauseChatGifs:   true,
   renderLinkImages: true,
+  linkPreviewMode:    'trusted',
+  linkPreviewTrusted: [],
   showPresence:    true,
   userBanners:     true,
   roomNicknames:   true,
@@ -37,6 +39,8 @@ document.addEventListener('DOMContentLoaded', () => {
     $('klipyKey').value             = s.klipyKey || '';
     $('pauseChatGifs').checked      = s.pauseChatGifs;
     $('renderLinkImages').checked   = s.renderLinkImages;
+    $('linkPreviewMode').value      = s.linkPreviewMode || 'trusted';
+    $('linkPreviewTrusted').value   = (Array.isArray(s.linkPreviewTrusted) ? s.linkPreviewTrusted : []).join('\n');
     $('showPresence').checked       = s.showPresence;
     $('userBanners').checked        = s.userBanners;
     $('roomNicknames').checked      = s.roomNicknames;
@@ -58,6 +62,8 @@ document.addEventListener('DOMContentLoaded', () => {
       klipyKey:        $('klipyKey').value.trim(),
       pauseChatGifs:   $('pauseChatGifs').checked,
       renderLinkImages: $('renderLinkImages').checked,
+      linkPreviewMode:    $('linkPreviewMode').value,
+      linkPreviewTrusted: parseDomains($('linkPreviewTrusted').value),
       showPresence:    $('showPresence').checked,
       userBanners:     $('userBanners').checked,
       roomNicknames:   $('roomNicknames').checked,
