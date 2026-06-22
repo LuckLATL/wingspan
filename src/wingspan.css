@@ -13,7 +13,7 @@
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  color: var(--tc-surface-low, #9ca3af);
+  color: var(--tc-surface-high, #e5e7eb);
   flex-shrink: 0;
   transition: background 0.12s ease, color 0.12s ease;
 }
@@ -1118,4 +1118,100 @@ body[data-wingspan-dragging-cat]  .wingspan-cat-header {
 @media (prefers-reduced-motion: reduce) {
   [data-wingspan-following] { animation: none !important; }
   .wingspan-follower-avatar { transition: none !important; }
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Chat media sizing — cap GIFs/images, enlarge stickers
+
+   Cinny renders all message media as an <img>._189qrd90 inside a sized box
+   ._1f6snux3. The box differs by media kind:
+     • GIFs / normal images: box is wrapped in a ._1f6snux0 flex container and
+       carries only an inline `height` (portrait gifs balloon past 600px tall).
+     • Stickers: box is a direct child of the content (.prxiv41d) with a small
+       fixed inline width+height (~9.5rem / 152px) — far too small.
+
+   Both fixes detach the <img> from the box's fixed inline dimensions and let it
+   size itself intrinsically within a max-width/height clamp. Letting both the
+   box and its wrapper layers shrink-wrap the image keeps the aspect ratio
+   correct for portrait and landscape alike (no stretching, no letterboxing).
+
+   Tune the four numbers below to taste.
+   ──────────────────────────────────────────────────────────────────────────*/
+
+:root {
+  --ws-media-max-w: 400px;   /* GIFs & inline images — max render width  */
+  --ws-media-max-h: 360px;   /* GIFs & inline images — max render height */
+  --ws-sticker-max-w: 13rem; /* stickers — max render width  (~208px, was ~152px) */
+  --ws-sticker-max-h: 13rem; /* stickers — max render height */
+}
+
+/* Collapse the fixed-size box so it shrink-wraps the image. The inner layers
+   are absolutely positioned, so the box has no in-flow content of its own and
+   would collapse to zero — we fix that below by pulling the base image layer
+   back into normal flow. */
+/* The flex wrapper keeps the GIF's original (wide) width and stretches the box
+   across it, leaving a gray bar beside the shrunk image — make it shrink-wrap
+   and stop stretching its child. */
+[data-message-item] ._1f6snux0 {
+  width: fit-content !important;
+  max-width: 100% !important;
+  align-items: flex-start !important;
+}
+
+[data-message-item] ._1f6snux0 ._1f6snux3,
+[data-message-item] .prxiv41d > ._1f6snux3 {
+  width: fit-content !important;
+  height: auto !important;
+  max-width: 100% !important;
+  align-self: flex-start !important;
+}
+
+/* ._178san50 stays the relative containing block for the absolutely-positioned
+   overlays (loading spinner, size badge) but shrink-wraps to the image. */
+[data-message-item] ._1f6snux0 ._1f6snux3 ._178san50,
+[data-message-item] .prxiv41d > ._1f6snux3 ._178san50 {
+  position: relative !important;
+  width: auto !important;
+  height: auto !important;
+}
+
+/* The base image layer (._178san51 — but NOT the spinner overlay, which also
+   carries that class together with .prxiv4g) is pulled into normal flow so it
+   gives the box its dimensions. */
+[data-message-item] ._1f6snux0 ._1f6snux3 ._178san51:not(.prxiv4g),
+[data-message-item] .prxiv41d > ._1f6snux3 ._178san51:not(.prxiv4g) {
+  position: static !important;
+  width: auto !important;
+  height: auto !important;
+}
+
+/* The blurhash <canvas> placeholder is sized to the old box (100%/100%); with
+   the box now auto-sized it would collapse to nothing — just drop it. */
+[data-message-item] ._1f6snux0 ._1f6snux3 ._178san50 > canvas,
+[data-message-item] .prxiv41d > ._1f6snux3 ._178san50 > canvas {
+  display: none !important;
+}
+
+/* GIFs & normal images — clamp both dimensions, preserve aspect ratio. */
+[data-message-item] ._1f6snux0 ._1f6snux3 img._189qrd90 {
+  position: static !important;
+  display: block !important;
+  width: auto !important;
+  height: auto !important;
+  max-width: var(--ws-media-max-w) !important;
+  max-height: var(--ws-media-max-h) !important;
+  object-fit: contain !important;
+  aspect-ratio: auto !important;
+}
+
+/* Stickers — bump the clamp up so they render noticeably larger. */
+[data-message-item] .prxiv41d > ._1f6snux3 img._189qrd90 {
+  position: static !important;
+  display: block !important;
+  width: auto !important;
+  height: auto !important;
+  max-width: var(--ws-sticker-max-w) !important;
+  max-height: var(--ws-sticker-max-h) !important;
+  object-fit: contain !important;
+  aspect-ratio: auto !important;
 }
