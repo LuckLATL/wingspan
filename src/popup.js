@@ -10,6 +10,7 @@ const DEFAULT_DOMAINS = [
 const DEFAULTS = {
   klipyKey:        '',
   pauseChatGifs:   true,
+  resizeMedia:     true,
   renderLinkImages: true,
   linkPreviewMode:    'trusted',
   linkPreviewTrusted: [],
@@ -38,6 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   chrome.storage.local.get(DEFAULTS, (s) => {
     $('klipyKey').value             = s.klipyKey || '';
     $('pauseChatGifs').checked      = s.pauseChatGifs;
+    $('resizeMedia').checked        = s.resizeMedia;
     $('renderLinkImages').checked   = s.renderLinkImages;
     $('linkPreviewMode').value      = s.linkPreviewMode || 'trusted';
     $('linkPreviewTrusted').value   = (Array.isArray(s.linkPreviewTrusted) ? s.linkPreviewTrusted : []).join('\n');
@@ -61,6 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const settings = {
       klipyKey:        $('klipyKey').value.trim(),
       pauseChatGifs:   $('pauseChatGifs').checked,
+      resizeMedia:     $('resizeMedia').checked,
       renderLinkImages: $('renderLinkImages').checked,
       linkPreviewMode:    $('linkPreviewMode').value,
       linkPreviewTrusted: parseDomains($('linkPreviewTrusted').value),

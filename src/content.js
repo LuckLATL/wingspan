@@ -19,6 +19,7 @@
     DEBOUNCE_MS:      250,
     FAV_KEY:          'wingspan_gif_favs',
     PAUSE_CHAT_GIFS:  true,
+    RESIZE_MEDIA:     true,
     RENDER_LINK_IMAGES: true,
     LINK_PREVIEW_MODE: 'trusted',   // 'all' | 'trusted' | 'off'
     LINK_PREVIEW_TRUSTED: [],       // whitelist of domains for 'trusted' mode
@@ -111,6 +112,7 @@
     chrome.storage.local.get({
       klipyKey:        CFG.KLIPY_KEY,
       pauseChatGifs:   CFG.PAUSE_CHAT_GIFS,
+      resizeMedia:     CFG.RESIZE_MEDIA,
       renderLinkImages: CFG.RENDER_LINK_IMAGES,
       linkPreviewMode:    CFG.LINK_PREVIEW_MODE,
       linkPreviewTrusted: CFG.LINK_PREVIEW_TRUSTED,
@@ -126,6 +128,8 @@
     }, (s) => {
       if (s.klipyKey)       CFG.KLIPY_KEY       = s.klipyKey;
       CFG.PAUSE_CHAT_GIFS   = s.pauseChatGifs;
+      CFG.RESIZE_MEDIA      = s.resizeMedia;
+      applyResizeMediaFlag();
       CFG.RENDER_LINK_IMAGES = s.renderLinkImages;
       CFG.LINK_PREVIEW_MODE    = s.linkPreviewMode || 'trusted';
       CFG.LINK_PREVIEW_TRUSTED = cleanDomainList(s.linkPreviewTrusted);
@@ -151,6 +155,10 @@
       if (changes.klipyKey)      CFG.KLIPY_KEY      = changes.klipyKey.newValue;
       if (changes.gifLimit)      CFG.GIF_LIMIT       = changes.gifLimit.newValue;
       if (changes.pauseChatGifs) CFG.PAUSE_CHAT_GIFS = changes.pauseChatGifs.newValue;
+      if (changes.resizeMedia) {
+        CFG.RESIZE_MEDIA = changes.resizeMedia.newValue;
+        applyResizeMediaFlag();
+      }
       if (changes.renderLinkImages) {
         CFG.RENDER_LINK_IMAGES = changes.renderLinkImages.newValue;
         // Image links move between the inline-media path and the preview path,
@@ -345,6 +353,73 @@
     }
   }
 
+  // Toggles the chat media-sizing rules (cap large GIFs/images, enlarge
+  // stickers). The rules live in wingspan.css gated behind
+  // `html.wingspan-resize-media`; flip the class to enable/disable them live.
+  function applyResizeMediaFlag() {
+    document.documentElement.classList.toggle('wingspan-resize-media', !!CFG.RESIZE_MEDIA);
+  }
+
+  // ─── Keep the timeline pinned to the bottom while media settles ────────────
+  // The media-resize rules strip Cinny's reserved-height placeholder, so a
+  // media box has near-zero height until its <img> actually loads, then snaps
+  // to full size. On first room load that expansion lands *after* Cinny has
+  // already scrolled to the bottom, stranding the view at a random offset. We
+  // watch managed media and, whenever one settles while the timeline was at the
+  // bottom, re-pin to the bottom. (Only resizing causes this — native sizing
+  // reserves space via blurhash — so this is a no-op when the feature is off.)
+
+  const BOTTOM_SLOP = 140;          // px from the bottom still counted as "at bottom"
+  let mediaScroller  = null;        // current timeline scroll element
+  let stickToBottom  = true;        // was the timeline at/near the bottom last we checked?
+
+  function getTimelineScroller(node) {
+    let el = node?.parentElement;
+    while (el && el !== document.body && el !== document.documentElement) {
+      if (el.scrollHeight - el.clientHeight > 8) {
+        const oy = getComputedStyle(el).overflowY;
+        if (oy === 'auto' || oy === 'scroll') return el;
+      }
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  function isNearBottom(sc) {
+    return sc.scrollHeight - sc.scrollTop - sc.clientHeight <= BOTTOM_SLOP;
+  }
+
+  // Locate the live timeline scroller and track whether the user is at the
+  // bottom. We sample on scroll (not in the load handler) because by the time a
+  // load fires the box has already expanded and the position reads as "not at
+  // bottom" even though we were.
+  function refreshMediaScroller() {
+    const anchor = document.querySelector('[data-message-item]');
+    const sc = getTimelineScroller(anchor);
+    if (!sc || sc === mediaScroller) return;
+    mediaScroller = sc;
+    stickToBottom = isNearBottom(sc);
+    sc.addEventListener('scroll', () => { stickToBottom = isNearBottom(sc); }, { passive: true });
+  }
+
+  function hookMediaScrollPin() {
+    if (!CFG.RESIZE_MEDIA) return;
+    refreshMediaScroller();
+    const imgs = document.querySelectorAll(
+      '[data-message-item] img._189qrd90:not([data-wingspan-pin]),' +
+      '.wingspan-link-media-img:not([data-wingspan-pin])'
+    );
+    for (const img of imgs) {
+      img.setAttribute('data-wingspan-pin', '1');
+      if (img.complete && img.naturalHeight) continue;   // already settled, no future shift
+      const settle = () => {
+        if (stickToBottom && mediaScroller) mediaScroller.scrollTop = mediaScroller.scrollHeight;
+      };
+      img.addEventListener('load',  settle);
+      img.addEventListener('error', settle);
+    }
+  }
+
   function maybeStartPresence() {
     if (!presenceScheduled && creds?.accessToken) {
       presenceScheduled = true;
@@ -360,6 +435,7 @@
     if (CFG.SHOW_PRESENCE)    injectDmListPresence();
     if (CFG.PAUSE_CHAT_GIFS)  pauseChatGifs();
     if (CFG.RENDER_LINK_IMAGES) renderLinkImages();
+    if (CFG.RESIZE_MEDIA)     hookMediaScrollPin();
     if (CFG.LINK_PREVIEW_MODE !== 'off') renderLinkPreviews();
     syncNativePreviews();
     enhanceFileCards();

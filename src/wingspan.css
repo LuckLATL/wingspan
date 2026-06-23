@@ -1136,6 +1136,10 @@ body[data-wingspan-dragging-cat]  .wingspan-cat-header {
    correct for portrait and landscape alike (no stretching, no letterboxing).
 
    Tune the four numbers below to taste.
+
+   All rules below are gated behind `html.wingspan-resize-media` so the whole
+   block can be turned off from the popup (content.js toggles the class). When
+   off, Cinny's native media sizing applies unchanged.
    ──────────────────────────────────────────────────────────────────────────*/
 
 :root {
@@ -1152,14 +1156,14 @@ body[data-wingspan-dragging-cat]  .wingspan-cat-header {
 /* The flex wrapper keeps the GIF's original (wide) width and stretches the box
    across it, leaving a gray bar beside the shrunk image — make it shrink-wrap
    and stop stretching its child. */
-[data-message-item] ._1f6snux0 {
+.wingspan-resize-media [data-message-item] ._1f6snux0 {
   width: fit-content !important;
   max-width: 100% !important;
   align-items: flex-start !important;
 }
 
-[data-message-item] ._1f6snux0 ._1f6snux3,
-[data-message-item] .prxiv41d > ._1f6snux3 {
+.wingspan-resize-media [data-message-item] ._1f6snux0 ._1f6snux3,
+.wingspan-resize-media [data-message-item] .prxiv41d > ._1f6snux3 {
   width: fit-content !important;
   height: auto !important;
   max-width: 100% !important;
@@ -1168,8 +1172,8 @@ body[data-wingspan-dragging-cat]  .wingspan-cat-header {
 
 /* ._178san50 stays the relative containing block for the absolutely-positioned
    overlays (loading spinner, size badge) but shrink-wraps to the image. */
-[data-message-item] ._1f6snux0 ._1f6snux3 ._178san50,
-[data-message-item] .prxiv41d > ._1f6snux3 ._178san50 {
+.wingspan-resize-media [data-message-item] ._1f6snux0 ._1f6snux3 ._178san50,
+.wingspan-resize-media [data-message-item] .prxiv41d > ._1f6snux3 ._178san50 {
   position: relative !important;
   width: auto !important;
   height: auto !important;
@@ -1178,8 +1182,8 @@ body[data-wingspan-dragging-cat]  .wingspan-cat-header {
 /* The base image layer (._178san51 — but NOT the spinner overlay, which also
    carries that class together with .prxiv4g) is pulled into normal flow so it
    gives the box its dimensions. */
-[data-message-item] ._1f6snux0 ._1f6snux3 ._178san51:not(.prxiv4g),
-[data-message-item] .prxiv41d > ._1f6snux3 ._178san51:not(.prxiv4g) {
+.wingspan-resize-media [data-message-item] ._1f6snux0 ._1f6snux3 ._178san51:not(.prxiv4g),
+.wingspan-resize-media [data-message-item] .prxiv41d > ._1f6snux3 ._178san51:not(.prxiv4g) {
   position: static !important;
   width: auto !important;
   height: auto !important;
@@ -1187,13 +1191,13 @@ body[data-wingspan-dragging-cat]  .wingspan-cat-header {
 
 /* The blurhash <canvas> placeholder is sized to the old box (100%/100%); with
    the box now auto-sized it would collapse to nothing — just drop it. */
-[data-message-item] ._1f6snux0 ._1f6snux3 ._178san50 > canvas,
-[data-message-item] .prxiv41d > ._1f6snux3 ._178san50 > canvas {
+.wingspan-resize-media [data-message-item] ._1f6snux0 ._1f6snux3 ._178san50 > canvas,
+.wingspan-resize-media [data-message-item] .prxiv41d > ._1f6snux3 ._178san50 > canvas {
   display: none !important;
 }
 
 /* GIFs & normal images — clamp both dimensions, preserve aspect ratio. */
-[data-message-item] ._1f6snux0 ._1f6snux3 img._189qrd90 {
+.wingspan-resize-media [data-message-item] ._1f6snux0 ._1f6snux3 img._189qrd90 {
   position: static !important;
   display: block !important;
   width: auto !important;
@@ -1205,7 +1209,7 @@ body[data-wingspan-dragging-cat]  .wingspan-cat-header {
 }
 
 /* Stickers — bump the clamp up so they render noticeably larger. */
-[data-message-item] .prxiv41d > ._1f6snux3 img._189qrd90 {
+.wingspan-resize-media [data-message-item] .prxiv41d > ._1f6snux3 img._189qrd90 {
   position: static !important;
   display: block !important;
   width: auto !important;
@@ -1231,10 +1235,16 @@ body[data-wingspan-dragging-cat]  .wingspan-cat-header {
   display: block;
   width: auto;
   height: auto;
-  max-width: var(--ws-media-max-w);
-  max-height: var(--ws-media-max-h);
+  max-width: 100%;       /* never overflow the message column, even when resizing is off */
   object-fit: contain;
   border-radius: 8px;
+}
+
+/* When media resizing is on, clamp inline link embeds to the same size as
+   native chat media. */
+.wingspan-resize-media .wingspan-link-media-img {
+  max-width: var(--ws-media-max-w);
+  max-height: var(--ws-media-max-h);
 }
 
 /* ───────────────────────────────────────────────────────────────────────────
